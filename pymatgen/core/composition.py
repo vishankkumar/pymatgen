@@ -2,31 +2,27 @@
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
+"""
+This module implements a Composition class to represent compositions,
+and a ChemicalPotential class to represent potentials.
+"""
 
 import collections
 import numbers
 import string
 from itertools import combinations_with_replacement, product
-
 import os
 import re
-
-from collections import defaultdict
 from typing import Tuple, List
-from monty.serialization import loadfn
-
 from functools import total_ordering
 
+from monty.serialization import loadfn
 from monty.fractions import gcd, gcd_float
+from monty.json import MSONable
+
 from pymatgen.core.periodic_table import get_el_sp, Element, Specie, DummySpecie
 from pymatgen.util.string import formula_double_format
-from monty.json import MSONable
 from pymatgen.core.units import Mass
-
-"""
-This module implements a Composition class to represent compositions,
-and a ChemicalPotential class to represent potentials.
-"""
 
 __author__ = "Shyue Ping Ong"
 __copyright__ = "Copyright 2011, The Materials Project"
@@ -77,17 +73,13 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
     7.0
     """
 
-    """
-    Tolerance in distinguishing different composition amounts.
-    1e-8 is fairly tight, but should cut out most floating point arithmetic
-    errors.
-    """
+    # Tolerance in distinguishing different composition amounts.
+    # 1e-8 is fairly tight, but should cut out most floating point arithmetic
+    # errors.
     amount_tolerance = 1e-8
 
-    """
-    Special formula handling for peroxides and certain elements. This is so
-    that formula output does not write LiO instead of Li2O2 for example.
-    """
+    # Special formula handling for peroxides and certain elements. This is so
+    # that formula output does not write LiO instead of Li2O2 for example.
     special_formulas = {"LiO": "Li2O2", "NaO": "Na2O2", "KO": "K2O2",
                         "HO": "H2O2", "CsO": "Cs2O2", "RbO": "Rb2O2",
                         "O": "O2", "N": "N2", "F": "F2", "Cl": "Cl2",
@@ -96,7 +88,7 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
     oxi_prob = None  # prior probability of oxidation used by oxi_state_guesses
 
     def __init__(self, *args, strict=False, **kwargs):  # allow_negative=False
-        """
+        r"""
         Very flexible Composition construction, similar to the built-in Python
         dict(). Also extended to allow simple string init.
 
@@ -118,7 +110,7 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
             strict: Only allow valid Elements and Species in the Composition.
 
             allow_negative: Whether to allow negative compositions. This
-                argument must be popped from the \\*\\*kwargs due to \\*args
+                argument must be popped from the **kwargs due to *args
                 ambiguity.
         """
         self.allow_negative = kwargs.pop('allow_negative', False)
@@ -187,7 +179,7 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
         for el in sorted(set(self.elements + other.elements)):
             if other[el] - self[el] >= Composition.amount_tolerance:
                 return False
-            elif self[el] - other[el] >= Composition.amount_tolerance:
+            if self[el] - other[el] >= Composition.amount_tolerance:
                 return True
         return True
 
@@ -254,10 +246,16 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
 
     @property
     def average_electroneg(self) -> float:
+        """
+        :return: Average electronegativity of the composition.
+        """
         return sum((el.X * abs(amt) for el, amt in self.items())) / self.num_atoms
 
     @property
     def total_electrons(self) -> float:
+        """
+        :return: Total number of electrons in composition.
+        """
         return sum((el.Z * abs(amt) for el, amt in self.items()))
 
     def almost_equals(self, other, rtol=0.1, atol=1e-8):
@@ -286,6 +284,9 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
         return len(self) == 1
 
     def copy(self):
+        """
+        :return: A copy of the composition.
+        """
         return Composition(self, allow_negative=self.allow_negative)
 
     @property
@@ -441,6 +442,16 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
 
     @property
     def hill_formula(self) -> str:
+        """
+        :return: Hill formula. The Hill system (or Hill notation) is a system
+        of writing empirical chemical formulas, molecular chemical formulas and
+        components of a condensed formula such that the number of carbon atoms
+        in a molecule is indicated first, the number of hydrogen atoms next,
+        and then the number of all other chemical elements subsequently, in
+        alphabetical order of the chemical symbols. When the formula contains
+        no carbon, all the elements, including hydrogen, are listed
+        alphabetically.
+        """
         c = self.element_composition
         elements = sorted([el.symbol for el in c.keys()])
         if "C" in elements:
@@ -528,8 +539,7 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
 
         if "block" in category:
             return any([category[0] in el.block for el in self.elements])
-        else:
-            return any([getattr(el, "is_{}".format(category)) for el in self.elements])
+        return any([getattr(el, "is_{}".format(category)) for el in self.elements])
 
     def _parse_formula(self, formula):
         """
@@ -753,7 +763,7 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
             all_oxi_states, max_sites, oxi_states_override, target_charge)
 
         # Special case: No charged compound is possible
-        if len(oxidation_states) == 0:
+        if not oxidation_states:
             return Composition(dict((Specie(e, 0), f) for e, f in self.items()))
 
         # Generate the species
@@ -856,7 +866,7 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
         el_amt = comp.get_el_amt_dict()
         els = el_amt.keys()
         el_sums = []  # matrix: dim1= el_idx, dim2=possible sums
-        el_sum_scores = defaultdict(set)  # dict of el_idx, sum -> score
+        el_sum_scores = collections.defaultdict(set)  # dict of el_idx, sum -> score
         el_best_oxid_combo = {}  # dict of el_idx, sum -> oxid combo with best score
         for idx, el in enumerate(els):
             el_sum_scores[idx] = {}
@@ -915,7 +925,7 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
                     dict((e, el_best_oxid_combo[idx][v]) for idx, (e, v) in enumerate(zip(els, x))))
 
         # sort the solutions by highest to lowest score
-        if len(all_scores) > 0:
+        if all_scores:
             all_sols, all_oxid_combo = zip(*[(y, x) for (z, y, x) in sorted(zip(all_scores, all_sols, all_oxid_combo),
                                                                             key=lambda pair: pair[0],
                                                                             reverse=True)])
@@ -962,7 +972,7 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
         return all_matches
 
     @staticmethod
-    def _comps_from_fuzzy_formula(fuzzy_formula, m_dict={}, m_points=0,
+    def _comps_from_fuzzy_formula(fuzzy_formula, m_dict=None, m_points=0,
                                   factor=1):
         """
         A recursive helper method for formula parsing that helps in
@@ -984,6 +994,7 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable):
             the second element being the number of points awarded that
             Composition intepretation.
         """
+        m_dict = m_dict or {}
 
         def _parse_chomp_and_rank(m, f, m_dict, m_points):
             """
@@ -1175,7 +1186,6 @@ def reduce_formula(sym_amt, iupac_ordering=False):
 
 class CompositionError(Exception):
     """Exception class for composition errors"""
-    pass
 
 
 class ChemicalPotential(dict, MSONable):
@@ -1200,16 +1210,14 @@ class ChemicalPotential(dict, MSONable):
     def __mul__(self, other):
         if isinstance(other, numbers.Number):
             return ChemicalPotential({k: v * other for k, v in self.items()})
-        else:
-            return NotImplemented
+        raise NotImplementedError()
 
     __rmul__ = __mul__
 
     def __truediv__(self, other):
         if isinstance(other, numbers.Number):
             return ChemicalPotential({k: v / other for k, v in self.items()})
-        else:
-            return NotImplemented
+        raise NotImplementedError()
 
     __div__ = __truediv__
 
@@ -1218,16 +1226,14 @@ class ChemicalPotential(dict, MSONable):
             els = set(self.keys()).union(other.keys())
             return ChemicalPotential({e: self.get(e, 0) - other.get(e, 0)
                                       for e in els})
-        else:
-            return NotImplemented
+        raise NotImplementedError()
 
     def __add__(self, other):
         if isinstance(other, ChemicalPotential):
             els = set(self.keys()).union(other.keys())
             return ChemicalPotential({e: self.get(e, 0) + other.get(e, 0)
                                       for e in els})
-        else:
-            return NotImplemented
+        raise NotImplementedError()
 
     def get_energy(self, composition, strict=True):
         """
@@ -1248,4 +1254,5 @@ class ChemicalPotential(dict, MSONable):
 
 if __name__ == "__main__":
     import doctest
+
     doctest.testmod()
