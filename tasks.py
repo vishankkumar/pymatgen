@@ -119,7 +119,7 @@ def contribute_dash(ctx):
             data["version"] = NEW_VER
         with open("docset.json", "wt") as f:
             json.dump(data, f, indent=4)
-        ctx.run('git commit -a -m "Update to v%s"' % NEW_VER)
+        ctx.run('git commit --no-verify -a -m "Update to v%s"' % NEW_VER)
         ctx.run('git push')
     ctx.run("rm pymatgen.tgz")
 
@@ -142,11 +142,6 @@ def submit_dash_pr(ctx):
 @task
 def update_doc(ctx):
     make_doc(ctx)
-    try:
-        contribute_dash(ctx)
-        ctx.run("mv pymatgen.tgz ..", warn=True)
-    except Exception:
-        pass
     ctx.run("cp docs_rst/conf-normal.py docs_rst/conf.py")
     make_doc(ctx)
     ctx.run("git add .")
@@ -186,7 +181,7 @@ def set_ver(ctx):
 def update_coverage(ctx):
     with cd("docs/_build/html/"):
         ctx.run("git pull")
-    ctx.run("nosetests --config=nose.cfg --cover-html --cover-html-dir=docs/_build/html/coverage")
+    ctx.run("pytest pymatgen")
     update_doc()
 
 
@@ -268,7 +263,7 @@ def release(ctx, notest=False, nodoc=False):
     ctx.run("rm -r dist build pymatgen.egg-info", warn=True)
     set_ver(ctx)
     if not notest:
-        ctx.run("nosetests")
+        ctx.run("pytest pymatgen")
     publish(ctx)
     if not nodoc:
         # update_doc(ctx)
