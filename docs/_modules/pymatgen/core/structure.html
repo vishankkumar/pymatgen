@@ -4,7 +4,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
-    <title>pymatgen.core.structure &#8212; pymatgen 2019.9.16 documentation</title>
+    <title>pymatgen.core.structure &#8212; pymatgen 2019.10.16 documentation</title>
     <link rel="stylesheet" href="../../../_static/proBlue.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
     <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
@@ -32,7 +32,7 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="nav-item nav-item-0"><a href="../../../index.html">pymatgen 2019.9.16 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">pymatgen 2019.10.16 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li>
           <li class="nav-item nav-item-2"><a href="../../pymatgen.html" accesskey="U">pymatgen</a> &#187;</li> 
       </ul>
@@ -65,7 +65,6 @@
 <span class="kn">import</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">functools</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Iterator</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Iterable</span>
-
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 
 <span class="kn">from</span> <span class="nn">monty.dev</span> <span class="k">import</span> <span class="n">deprecated</span>
@@ -91,7 +90,113 @@
 <span class="n">__status__</span> <span class="o">=</span> <span class="s2">&quot;Production&quot;</span>
 <span class="n">__date__</span> <span class="o">=</span> <span class="s2">&quot;Sep 23, 2011&quot;</span>
 
-<span class="n">Neighbor</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Neighbor&#39;</span><span class="p">,</span> <span class="s1">&#39;site distance index image&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Neighbor"><a class="viewcode-back" href="../../../pymatgen.core.structure.html#pymatgen.core.structure.Neighbor">[docs]</a><span class="k">class</span> <span class="nc">Neighbor</span><span class="p">(</span><span class="n">Site</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Simple Site subclass to contain a neighboring atom that skips all the</span>
+<span class="sd">    unnecessary checks for speed. Can be</span>
+<span class="sd">    used as a fixed-length tuple of size 3 to retain backwards compatibility</span>
+<span class="sd">    with past use cases.</span>
+
+<span class="sd">        (site, nn_distance, index).</span>
+
+<span class="sd">    In future, usage should be to call attributes, e.g., Neighbor.index,</span>
+<span class="sd">    Neighbor.distance, etc.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">species</span><span class="p">:</span> <span class="n">Composition</span><span class="p">,</span>
+                 <span class="n">coords</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+                 <span class="n">properties</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">nn_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+                 <span class="n">index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param species: Same as Site</span>
+<span class="sd">        :param coords: Same as Site, but must be fractional.</span>
+<span class="sd">        :param properties: Same as Site</span>
+<span class="sd">        :param nn_distance: Distance to some other Site.</span>
+<span class="sd">        :param index: Index within structure.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coords</span> <span class="o">=</span> <span class="n">coords</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_species</span> <span class="o">=</span> <span class="n">species</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">properties</span> <span class="o">=</span> <span class="n">properties</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nn_distance</span> <span class="o">=</span> <span class="n">nn_distance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">index</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Make neighbor Tuple-like to retain backwards compatibility.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="mi">3</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>  <span class="c1"># type: ignore</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Make neighbor Tuple-like to retain backwards compatibility.</span>
+
+<span class="sd">        :param i:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nn_distance</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">)[</span><span class="n">i</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="PeriodicNeighbor"><a class="viewcode-back" href="../../../pymatgen.core.structure.html#pymatgen.core.structure.PeriodicNeighbor">[docs]</a><span class="k">class</span> <span class="nc">PeriodicNeighbor</span><span class="p">(</span><span class="n">PeriodicSite</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Simple PeriodicSite subclass to contain a neighboring atom that skips all</span>
+<span class="sd">    the unnecessary checks for speed. Can be used as a fixed-length tuple of</span>
+<span class="sd">    size 4 to retain backwards compatibility with past use cases.</span>
+
+<span class="sd">        (site, distance, index, image).</span>
+
+<span class="sd">    In future, usage should be to call attributes, e.g., PeriodicNeighbor.index,</span>
+<span class="sd">    PeriodicNeighbor.distance, etc.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">species</span><span class="p">:</span> <span class="n">Composition</span><span class="p">,</span>
+                 <span class="n">coords</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+                 <span class="n">lattice</span><span class="p">:</span> <span class="n">Lattice</span><span class="p">,</span>
+                 <span class="n">properties</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">nn_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+                 <span class="n">index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+                 <span class="n">image</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param species: Same as PeriodicSite</span>
+<span class="sd">        :param coords: Same as PeriodicSite, but must be fractional.</span>
+<span class="sd">        :param lattice: Same as PeriodicSite</span>
+<span class="sd">        :param properties: Same as PeriodicSite</span>
+<span class="sd">        :param nn_distance: Distance to some other Site.</span>
+<span class="sd">        :param index: Index within structure.</span>
+<span class="sd">        :param image: PeriodicImage</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lattice</span> <span class="o">=</span> <span class="n">lattice</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_frac_coords</span> <span class="o">=</span> <span class="n">coords</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_species</span> <span class="o">=</span> <span class="n">species</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">properties</span> <span class="o">=</span> <span class="n">properties</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nn_distance</span> <span class="o">=</span> <span class="n">nn_distance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">index</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="n">image</span>
+
+    <span class="nd">@property</span>  <span class="c1"># type: ignore</span>
+    <span class="k">def</span> <span class="nf">coords</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: Cartesian coords.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lattice</span><span class="o">.</span><span class="n">get_cartesian_coords</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_frac_coords</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Make neighbor Tuple-like to retain backwards compatibility.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="mi">4</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>  <span class="c1"># type: ignore</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Make neighbor Tuple-like to retain backwards compatibility.</span>
+
+<span class="sd">        :param i:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nn_distance</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">image</span><span class="p">)[</span><span class="n">i</span><span class="p">]</span></div>
 
 
 <div class="viewcode-block" id="SiteCollection"><a class="viewcode-back" href="../../../pymatgen.core.structure.html#pymatgen.core.structure.SiteCollection">[docs]</a><span class="k">class</span> <span class="nc">SiteCollection</span><span class="p">(</span><span class="n">collections</span><span class="o">.</span><span class="n">abc</span><span class="o">.</span><span class="n">Sequence</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">ABCMeta</span><span class="p">):</span>
@@ -107,7 +212,7 @@
 
     <span class="nd">@property</span>
     <span class="nd">@abstractmethod</span>
-    <span class="k">def</span> <span class="nf">sites</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">Site</span><span class="p">,</span> <span class="n">PeriodicSite</span><span class="p">]]:</span>
+    <span class="k">def</span> <span class="nf">sites</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">Site</span><span class="p">,</span> <span class="n">PeriodicSite</span><span class="p">]]:</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns a tuple of sites.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -158,7 +263,7 @@
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">types_of_specie</span><span class="p">)</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">types_of_specie</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">Element</span><span class="p">,</span> <span class="n">Specie</span><span class="p">,</span> <span class="n">DummySpecie</span><span class="p">]]:</span>
+    <span class="k">def</span> <span class="nf">types_of_specie</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">Element</span><span class="p">,</span> <span class="n">Specie</span><span class="p">,</span> <span class="n">DummySpecie</span><span class="p">]]:</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        List of types of specie.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -166,9 +271,9 @@
         <span class="n">types</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># type: List[Union[Element, Specie, DummySpecie]]</span>
         <span class="k">for</span> <span class="n">site</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">sp</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">site</span><span class="o">.</span><span class="n">species</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="k">if</span> <span class="n">sp</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">types</span> <span class="ow">and</span> <span class="n">v</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">v</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="n">types</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sp</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">types</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">types</span><span class="p">))</span>  <span class="c1"># type: ignore</span>
 
 <div class="viewcode-block" id="SiteCollection.group_by_types"><a class="viewcode-back" href="../../../pymatgen.core.structure.html#pymatgen.core.structure.SiteCollection.group_by_types">[docs]</a>    <span class="k">def</span> <span class="nf">group_by_types</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">Site</span><span class="p">,</span> <span class="n">PeriodicSite</span><span class="p">]]:</span>
         <span class="sd">&quot;&quot;&quot;Iterate over species grouped by type&quot;&quot;&quot;</span>
@@ -186,17 +291,17 @@
                       <span class="k">if</span> <span class="n">specie</span><span class="o">.</span><span class="n">symbol</span> <span class="o">==</span> <span class="n">symbol</span><span class="p">))</span></div>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">symbol_set</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+    <span class="k">def</span> <span class="nf">symbol_set</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Tuple with the set of chemical symbols.</span>
 <span class="sd">        Note that len(symbol_set) == len(types_of_specie)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">((</span><span class="n">specie</span><span class="o">.</span><span class="n">symbol</span> <span class="k">for</span> <span class="n">specie</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">types_of_specie</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">specie</span><span class="o">.</span><span class="n">symbol</span> <span class="k">for</span> <span class="n">specie</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">types_of_specie</span><span class="p">))</span>  <span class="c1"># type: ignore</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">atomic_numbers</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+    <span class="nd">@property</span>  <span class="c1"># type: ignore</span>
+    <span class="k">def</span> <span class="nf">atomic_numbers</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
         <span class="sd">&quot;&quot;&quot;List of atomic numbers.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">site</span><span class="o">.</span><span class="n">specie</span><span class="o">.</span><span class="n">number</span> <span class="k">for</span> <span class="n">site</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">site</span><span class="o">.</span><span class="n">specie</span><span class="o">.</span><span class="n">Z</span> <span class="k">for</span> <span class="n">site</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">site_properties</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">]:</span>
@@ -483,8 +588,8 @@
 <span class="sd">        Add spin states to a structure.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            spisn (dict): Dict of spins associated with</span>
-<span class="sd">            elements or species, e.g. {&quot;Ni&quot;:+5} or {&quot;Ni2+&quot;:5}</span>
+<span class="sd">            spins (dict): Dict of spins associated with elements or species,</span>
+<span class="sd">                e.g. {&quot;Ni&quot;:+5} or {&quot;Ni2+&quot;:5}</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">site</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">sites</span><span class="p">:</span>
             <span class="n">new_sp</span> <span class="o">=</span> <span class="p">{}</span>
@@ -568,7 +673,7 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                  <span class="n">lattice</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">Lattice</span><span class="p">],</span>
-                 <span class="n">species</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Specie</span><span class="p">,</span> <span class="n">DummySpecie</span><span class="p">,</span> <span class="n">Composition</span><span class="p">]],</span>
+                 <span class="n">species</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Specie</span><span class="p">,</span> <span class="n">DummySpecie</span><span class="p">,</span> <span class="n">Composition</span><span class="p">]],</span>
                  <span class="n">coords</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]],</span>
                  <span class="n">charge</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">validate_proximity</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -1117,7 +1222,7 @@
 
 <div class="viewcode-block" id="IStructure.get_neighbors"><a class="viewcode-back" href="../../../pymatgen.core.structure.html#pymatgen.core.structure.IStructure.get_neighbors">[docs]</a>    <span class="k">def</span> <span class="nf">get_neighbors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">site</span><span class="p">:</span> <span class="n">PeriodicSite</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
                       <span class="n">include_index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">include_image</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> \
-            <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Neighbor</span><span class="p">]:</span>
+            <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">PeriodicNeighbor</span><span class="p">]:</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Get all neighbors to a site within a sphere of radius r.  Excludes the</span>
 <span class="sd">        site itself.</span>
@@ -1131,7 +1236,7 @@
 <span class="sd">                is always included in the returned data.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            [Neighbor] where Neighbor is a namedtuple containing</span>
+<span class="sd">            [PeriodicNeighbor] where PeriodicNeighbor is a namedtuple containing</span>
 <span class="sd">            (site, distance, index, image).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_all_neighbors</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">include_index</span><span class="o">=</span><span class="n">include_index</span><span class="p">,</span>
@@ -1153,7 +1258,7 @@
 <span class="sd">                is included in the returned data</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            [Neighbor] where Neighbor is a namedtuple containing</span>
+<span class="sd">            [PeriodicNeighbor] where PeriodicNeighbor is a namedtuple containing</span>
 <span class="sd">            (site, distance, index, image).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">nn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_sites_in_sphere</span><span class="p">(</span><span class="n">site</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span>
@@ -1165,8 +1270,7 @@
                           <span class="n">include_index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
                           <span class="n">include_image</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
                           <span class="n">sites</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">PeriodicSite</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                          <span class="n">numerical_tol</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-8</span><span class="p">)</span> \
-            <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Neighbor</span><span class="p">]]:</span>
+                          <span class="n">numerical_tol</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-8</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">PeriodicNeighbor</span><span class="p">]]:</span>
 
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Get neighbors for each atom in the unit cell, out to a distance r</span>
@@ -1203,7 +1307,100 @@
 <span class="sd">                ok in most instances.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            [Neighbor] where Neighbor is a namedtuple containing</span>
+<span class="sd">            [PeriodicNeighbor] where PeriodicNeighbor is a namedtuple containing</span>
+<span class="sd">            (site, distance, index, image).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">pymatgen.optimization.neighbors</span> <span class="k">import</span> <span class="n">find_points_in_spheres</span>  <span class="c1"># type: ignore</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_all_neighbors_py</span><span class="p">(</span><span class="n">r</span><span class="o">=</span><span class="n">r</span><span class="p">,</span> <span class="n">include_index</span><span class="o">=</span><span class="n">include_index</span><span class="p">,</span> <span class="n">include_image</span><span class="o">=</span><span class="n">include_image</span><span class="p">,</span>
+                                             <span class="n">sites</span><span class="o">=</span><span class="n">sites</span><span class="p">,</span> <span class="n">numerical_tol</span><span class="o">=</span><span class="n">numerical_tol</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">sites</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">sites</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sites</span>
+            <span class="n">site_coords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">site</span><span class="o">.</span><span class="n">coords</span> <span class="k">for</span> <span class="n">site</span> <span class="ow">in</span> <span class="n">sites</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="n">cart_coords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cart_coords</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="n">lattice_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lattice</span><span class="o">.</span><span class="n">matrix</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+            <span class="n">center_indices</span><span class="p">,</span> <span class="n">points_indices</span><span class="p">,</span> <span class="n">images</span><span class="p">,</span> <span class="n">distances</span> <span class="o">=</span> \
+                <span class="n">find_points_in_spheres</span><span class="p">(</span><span class="n">cart_coords</span><span class="p">,</span> <span class="n">site_coords</span><span class="p">,</span> <span class="n">r</span><span class="o">=</span><span class="n">r</span><span class="p">,</span>
+                                       <span class="n">pbc</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span>
+                                       <span class="n">lattice</span><span class="o">=</span><span class="n">lattice_matrix</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="n">numerical_tol</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">points_indices</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">[[]]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">sites</span><span class="p">)</span>
+            <span class="n">f_coords</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">frac_coords</span><span class="p">[</span><span class="n">points_indices</span><span class="p">]</span> <span class="o">+</span> <span class="n">images</span>
+            <span class="n">neighbor_dict</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">List</span><span class="p">]</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+            <span class="n">lattice</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lattice</span>
+            <span class="n">atol</span> <span class="o">=</span> <span class="n">Site</span><span class="o">.</span><span class="n">position_atol</span>
+            <span class="n">all_sites</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sites</span>
+            <span class="k">for</span> <span class="n">cindex</span><span class="p">,</span> <span class="n">pindex</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">f_coord</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">center_indices</span><span class="p">,</span> <span class="n">points_indices</span><span class="p">,</span> <span class="n">images</span><span class="p">,</span> <span class="n">f_coords</span><span class="p">,</span> <span class="n">distances</span><span class="p">):</span>
+                <span class="n">psite</span> <span class="o">=</span> <span class="n">all_sites</span><span class="p">[</span><span class="n">pindex</span><span class="p">]</span>
+                <span class="n">csite</span> <span class="o">=</span> <span class="n">sites</span><span class="p">[</span><span class="n">cindex</span><span class="p">]</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">d</span> <span class="o">&gt;</span> <span class="n">numerical_tol</span> <span class="ow">or</span>
+                        <span class="c1"># This simply compares the psite and csite. The reason why manual comparison is done is</span>
+                        <span class="c1"># for speed. This does not check the lattice since they are always equal. Also, the or construct</span>
+                        <span class="c1"># returns True immediately once one of the conditions are satisfied.</span>
+                        <span class="n">psite</span><span class="o">.</span><span class="n">species</span> <span class="o">!=</span> <span class="n">csite</span><span class="o">.</span><span class="n">species</span> <span class="ow">or</span>
+                        <span class="p">(</span><span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">psite</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">csite</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="n">atol</span><span class="p">))</span> <span class="ow">or</span>
+                        <span class="p">(</span><span class="ow">not</span> <span class="n">psite</span><span class="o">.</span><span class="n">properties</span> <span class="o">==</span> <span class="n">csite</span><span class="o">.</span><span class="n">properties</span><span class="p">)):</span>
+                    <span class="n">neighbor_dict</span><span class="p">[</span><span class="n">cindex</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PeriodicNeighbor</span><span class="p">(</span>
+                        <span class="n">species</span><span class="o">=</span><span class="n">psite</span><span class="o">.</span><span class="n">species</span><span class="p">,</span>
+                        <span class="n">coords</span><span class="o">=</span><span class="n">f_coord</span><span class="p">,</span>
+                        <span class="n">lattice</span><span class="o">=</span><span class="n">lattice</span><span class="p">,</span>
+                        <span class="n">properties</span><span class="o">=</span><span class="n">psite</span><span class="o">.</span><span class="n">properties</span><span class="p">,</span>
+                        <span class="n">nn_distance</span><span class="o">=</span><span class="n">d</span><span class="p">,</span>
+                        <span class="n">index</span><span class="o">=</span><span class="n">pindex</span><span class="p">,</span>
+                        <span class="n">image</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">image</span><span class="p">)))</span>
+
+            <span class="n">neighbors</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">PeriodicNeighbor</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sites</span><span class="p">)):</span>
+                <span class="n">neighbors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">neighbor_dict</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="k">return</span> <span class="n">neighbors</span></div>
+
+<div class="viewcode-block" id="IStructure.get_all_neighbors_py"><a class="viewcode-back" href="../../../pymatgen.core.structure.html#pymatgen.core.structure.IStructure.get_all_neighbors_py">[docs]</a>    <span class="k">def</span> <span class="nf">get_all_neighbors_py</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+                             <span class="n">include_index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                             <span class="n">include_image</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                             <span class="n">sites</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">PeriodicSite</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                             <span class="n">numerical_tol</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-8</span><span class="p">)</span> \
+            <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">PeriodicNeighbor</span><span class="p">]]:</span>
+
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get neighbors for each atom in the unit cell, out to a distance r</span>
+<span class="sd">        Returns a list of list of neighbors for each site in structure.</span>
+<span class="sd">        Use this method if you are planning on looping over all sites in the</span>
+<span class="sd">        crystal. If you only want neighbors for a particular site, use the</span>
+<span class="sd">        method get_neighbors as it may not have to build such a large supercell</span>
+<span class="sd">        However if you are looping over all sites in the crystal, this method</span>
+<span class="sd">        is more efficient since it only performs one pass over a large enough</span>
+<span class="sd">        supercell to contain all possible atoms out to a distance r.</span>
+<span class="sd">        The return type is a [(site, dist) ...] since most of the time,</span>
+<span class="sd">        subsequent processing requires the distance.</span>
+
+<span class="sd">        A note about periodic images: Before computing the neighbors, this</span>
+<span class="sd">        operation translates all atoms to within the unit cell (having</span>
+<span class="sd">        fractional coordinates within [0,1)). This means that the &quot;image&quot; of a</span>
+<span class="sd">        site does not correspond to how much it has been translates from its</span>
+<span class="sd">        current position, but which image of the unit cell it resides.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            r (float): Radius of sphere.</span>
+<span class="sd">            include_index (bool): Deprecated. Now, the non-supercell site index</span>
+<span class="sd">                is always included in the returned data.</span>
+<span class="sd">            include_image (bool): Deprecated. Now the supercell image</span>
+<span class="sd">                is always included in the returned data.</span>
+<span class="sd">            sites (list of Sites or None): sites for getting all neighbors,</span>
+<span class="sd">                default is None, which means neighbors will be obtained for all</span>
+<span class="sd">                sites. This is useful in the situation where you are interested</span>
+<span class="sd">                only in one subspecies type, and makes it a lot faster.</span>
+<span class="sd">            numerical_tol (float): This is a numerical tolerance for distances.</span>
+<span class="sd">                Sites which are &lt; numerical_tol are determined to be conincident</span>
+<span class="sd">                with the site. Sites which are r + numerical_tol away is deemed</span>
+<span class="sd">                to be within r from the site. The default of 1e-8 should be</span>
+<span class="sd">                ok in most instances.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            [PeriodicNeighbor] where PeriodicNeighbor is a namedtuple containing</span>
 <span class="sd">            (site, distance, index, image).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -1212,19 +1409,24 @@
         <span class="n">site_coords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">site</span><span class="o">.</span><span class="n">coords</span> <span class="k">for</span> <span class="n">site</span> <span class="ow">in</span> <span class="n">sites</span><span class="p">])</span>
         <span class="n">point_neighbors</span> <span class="o">=</span> <span class="n">get_points_in_spheres</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cart_coords</span><span class="p">,</span> <span class="n">site_coords</span><span class="p">,</span> <span class="n">r</span><span class="o">=</span><span class="n">r</span><span class="p">,</span> <span class="n">pbc</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                                                 <span class="n">numerical_tol</span><span class="o">=</span><span class="n">numerical_tol</span><span class="p">,</span> <span class="n">lattice</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lattice</span><span class="p">)</span>
-        <span class="n">neighbors</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Neighbor</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">neighbors</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">PeriodicNeighbor</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">point_neighbor</span><span class="p">,</span> <span class="n">site</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">point_neighbors</span><span class="p">,</span> <span class="n">sites</span><span class="p">):</span>
-            <span class="n">nns</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Neighbor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">nns</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">PeriodicNeighbor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">point_neighbor</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="n">neighbors</span><span class="o">.</span><span class="n">append</span><span class="p">([])</span>
                 <span class="k">continue</span>
             <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">point_neighbor</span><span class="p">:</span>
                 <span class="n">coord</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">image</span> <span class="o">=</span> <span class="n">n</span>
                 <span class="k">if</span> <span class="p">(</span><span class="n">d</span> <span class="o">&gt;</span> <span class="n">numerical_tol</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">!=</span> <span class="n">site</span><span class="p">):</span>
-                    <span class="n">nn_site</span> <span class="o">=</span> <span class="n">PeriodicSite</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">index</span><span class="p">]</span><span class="o">.</span><span class="n">species</span><span class="p">,</span> <span class="n">coord</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lattice</span><span class="p">,</span>
-                                           <span class="n">properties</span><span class="o">=</span><span class="bp">self</span><span class="p">[</span><span class="n">index</span><span class="p">]</span><span class="o">.</span><span class="n">properties</span><span class="p">,</span>
-                                           <span class="n">coords_are_cartesian</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                    <span class="n">neighbor</span> <span class="o">=</span> <span class="n">Neighbor</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="n">nn_site</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="n">d</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span> <span class="n">image</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">image</span><span class="p">))</span>
+                    <span class="n">neighbor</span> <span class="o">=</span> <span class="n">PeriodicNeighbor</span><span class="p">(</span>
+                        <span class="n">species</span><span class="o">=</span><span class="bp">self</span><span class="p">[</span><span class="n">index</span><span class="p">]</span><span class="o">.</span><span class="n">species</span><span class="p">,</span>
+                        <span class="n">coords</span><span class="o">=</span><span class="n">coord</span><span class="p">,</span>
+                        <span class="n">lattice</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lattice</span><span class="p">,</span>
+                        <span class="n">properties</span><span class="o">=</span><span class="bp">self</span><span class="p">[</span><span class="n">index</span><span class="p">]</span><span class="o">.</span><span class="n">properties</span><span class="p">,</span>
+                        <span class="n">nn_distance</span><span class="o">=</span><span class="n">d</span><span class="p">,</span>
+                        <span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span>
+                        <span class="n">image</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+                    <span class="p">)</span>
                     <span class="n">nns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">neighbor</span><span class="p">)</span>
             <span class="n">neighbors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nns</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">neighbors</span></div>
@@ -1917,13 +2119,15 @@
             <span class="kn">from</span> <span class="nn">pymatgen.io.prismatic</span> <span class="k">import</span> <span class="n">Prismatic</span>
             <span class="n">s</span> <span class="o">=</span> <span class="n">Prismatic</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">to_string</span><span class="p">()</span>
             <span class="k">return</span> <span class="n">s</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="n">fmt</span> <span class="o">==</span> <span class="s2">&quot;yaml&quot;</span> <span class="ow">or</span> <span class="n">fnmatch</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="s2">&quot;*.yaml*&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">fnmatch</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="s2">&quot;*.yml*&quot;</span><span class="p">):</span>
             <span class="kn">import</span> <span class="nn">ruamel.yaml</span> <span class="k">as</span> <span class="nn">yaml</span>
             <span class="k">if</span> <span class="n">filename</span><span class="p">:</span>
                 <span class="k">with</span> <span class="n">zopen</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;wt&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
                     <span class="n">yaml</span><span class="o">.</span><span class="n">safe_dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">as_dict</span><span class="p">(),</span> <span class="n">f</span><span class="p">)</span>
                 <span class="k">return</span> <span class="kc">None</span>
             <span class="k">return</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">as_dict</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid format: `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">fmt</span><span class="p">))</span>
 
         <span class="k">if</span> <span class="n">filename</span><span class="p">:</span>
             <span class="n">writer</span><span class="o">.</span><span class="n">write_file</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
@@ -2083,7 +2287,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
-                 <span class="n">species</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Specie</span><span class="p">,</span> <span class="n">DummySpecie</span><span class="p">,</span> <span class="n">Composition</span><span class="p">]],</span>
+                 <span class="n">species</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Specie</span><span class="p">,</span> <span class="n">DummySpecie</span><span class="p">,</span> <span class="n">Composition</span><span class="p">]],</span>
                  <span class="n">coords</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]],</span>
                  <span class="n">charge</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
                  <span class="n">spin_multiplicity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -2373,7 +2577,8 @@
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">site</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sites</span><span class="p">):</span>
             <span class="n">dist</span> <span class="o">=</span> <span class="n">site</span><span class="o">.</span><span class="n">distance_from_point</span><span class="p">(</span><span class="n">pt</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">dist</span> <span class="o">&lt;=</span> <span class="n">r</span><span class="p">:</span>
-                <span class="n">neighbors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Neighbor</span><span class="p">(</span><span class="n">site</span><span class="p">,</span> <span class="n">dist</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+                <span class="n">neighbors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Neighbor</span><span class="p">(</span><span class="n">site</span><span class="o">.</span><span class="n">species</span><span class="p">,</span> <span class="n">site</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span>
+                                          <span class="n">site</span><span class="o">.</span><span class="n">properties</span><span class="p">,</span> <span class="n">dist</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">neighbors</span></div>
 
 <div class="viewcode-block" id="IMolecule.get_neighbors"><a class="viewcode-back" href="../../../pymatgen.core.structure.html#pymatgen.core.structure.IMolecule.get_neighbors">[docs]</a>    <span class="k">def</span> <span class="nf">get_neighbors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">site</span><span class="p">,</span> <span class="n">r</span><span class="p">):</span>
@@ -2390,7 +2595,7 @@
 <span class="sd">            requires the distance.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">nns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_sites_in_sphere</span><span class="p">(</span><span class="n">site</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">nn</span> <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="n">nns</span> <span class="k">if</span> <span class="n">nn</span><span class="o">.</span><span class="n">site</span> <span class="o">!=</span> <span class="n">site</span><span class="p">]</span></div>
+        <span class="k">return</span> <span class="p">[</span><span class="n">nn</span> <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="n">nns</span> <span class="k">if</span> <span class="n">nn</span> <span class="o">!=</span> <span class="n">site</span><span class="p">]</span></div>
 
 <div class="viewcode-block" id="IMolecule.get_neighbors_in_shell"><a class="viewcode-back" href="../../../pymatgen.core.structure.html#pymatgen.core.structure.IMolecule.get_neighbors_in_shell">[docs]</a>    <span class="k">def</span> <span class="nf">get_neighbors_in_shell</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">origin</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">dr</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -2408,7 +2613,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">outer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_sites_in_sphere</span><span class="p">(</span><span class="n">origin</span><span class="p">,</span> <span class="n">r</span> <span class="o">+</span> <span class="n">dr</span><span class="p">)</span>
         <span class="n">inner</span> <span class="o">=</span> <span class="n">r</span> <span class="o">-</span> <span class="n">dr</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">nn</span> <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="n">outer</span> <span class="k">if</span> <span class="n">nn</span><span class="o">.</span><span class="n">distance</span> <span class="o">&gt;</span> <span class="n">inner</span><span class="p">]</span></div>
+        <span class="k">return</span> <span class="p">[</span><span class="n">nn</span> <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="n">outer</span> <span class="k">if</span> <span class="n">nn</span><span class="o">.</span><span class="n">nn_distance</span> <span class="o">&gt;</span> <span class="n">inner</span><span class="p">]</span></div>
 
 <div class="viewcode-block" id="IMolecule.get_boxed_structure"><a class="viewcode-back" href="../../../pymatgen.core.structure.html#pymatgen.core.structure.IMolecule.get_boxed_structure">[docs]</a>    <span class="k">def</span> <span class="nf">get_boxed_structure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">images</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
                             <span class="n">random_rotation</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">min_dist</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="bp">cls</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
@@ -2657,7 +2862,7 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                  <span class="n">lattice</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">Lattice</span><span class="p">],</span>
-                 <span class="n">species</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Specie</span><span class="p">,</span> <span class="n">DummySpecie</span><span class="p">,</span> <span class="n">Composition</span><span class="p">]],</span>
+                 <span class="n">species</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Specie</span><span class="p">,</span> <span class="n">DummySpecie</span><span class="p">,</span> <span class="n">Composition</span><span class="p">]],</span>
                  <span class="n">coords</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]],</span>
                  <span class="n">charge</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">validate_proximity</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -3288,7 +3493,7 @@
     <span class="fm">__hash__</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># type: ignore</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
-                 <span class="n">species</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Specie</span><span class="p">,</span> <span class="n">DummySpecie</span><span class="p">,</span> <span class="n">Composition</span><span class="p">]],</span>
+                 <span class="n">species</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Specie</span><span class="p">,</span> <span class="n">DummySpecie</span><span class="p">,</span> <span class="n">Composition</span><span class="p">]],</span>
                  <span class="n">coords</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]],</span>
                  <span class="n">charge</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
                  <span class="n">spin_multiplicity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -3596,9 +3801,8 @@
         <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_neighbors</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="mi">3</span><span class="p">):</span>
             <span class="c1"># Check that the nn has neighbors within a sensible distance but</span>
             <span class="c1"># is not the site being substituted.</span>
-            <span class="k">for</span> <span class="n">nn2</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_neighbors</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">site</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">nn2</span><span class="o">.</span><span class="n">site</span> <span class="o">!=</span> <span class="bp">self</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="ow">and</span> \
-                        <span class="n">nn2</span><span class="o">.</span><span class="n">distance</span> <span class="o">&lt;</span> <span class="mf">1.2</span> <span class="o">*</span> <span class="n">get_bond_length</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">specie</span><span class="p">,</span> <span class="n">nn2</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">specie</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">nn2</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_neighbors</span><span class="p">(</span><span class="n">nn</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">nn2</span> <span class="o">!=</span> <span class="bp">self</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="ow">and</span> <span class="n">nn2</span><span class="o">.</span><span class="n">nn_distance</span> <span class="o">&lt;</span> <span class="mf">1.2</span> <span class="o">*</span> <span class="n">get_bond_length</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">specie</span><span class="p">,</span> <span class="n">nn2</span><span class="o">.</span><span class="n">specie</span><span class="p">):</span>
                     <span class="n">all_non_terminal_nn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="p">)</span>
                     <span class="k">break</span>
 
@@ -3606,7 +3810,7 @@
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t find a non-terminal neighbor to attach&quot;</span>
                                <span class="s2">&quot; functional group to.&quot;</span><span class="p">)</span>
 
-        <span class="n">non_terminal_nn</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">all_non_terminal_nn</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">nn</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">distance</span><span class="p">)</span><span class="o">.</span><span class="n">site</span>
+        <span class="n">non_terminal_nn</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">all_non_terminal_nn</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">nn</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">nn_distance</span><span class="p">)</span>
 
         <span class="c1"># Set the origin point to be the coordinates of the nearest</span>
         <span class="c1"># non-terminal neighbor.</span>
@@ -3704,7 +3908,7 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="nav-item nav-item-0"><a href="../../../index.html">pymatgen 2019.9.16 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">pymatgen 2019.10.16 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li>
           <li class="nav-item nav-item-2"><a href="../../pymatgen.html" >pymatgen</a> &#187;</li> 
       </ul>

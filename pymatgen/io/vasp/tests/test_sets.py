@@ -14,6 +14,8 @@ from pymatgen.core.surface import SlabGenerator
 from pymatgen.util.testing import PymatgenTest
 from pymatgen.io.vasp.outputs import Vasprun
 
+MODULE_DIR = Path(__file__).resolve().parent
+
 dec = MontyDecoder()
 
 
@@ -1142,6 +1144,12 @@ class LobsterSetTest(PymatgenTest):
         self.lobsterset3 = LobsterSet(self.struct, isym=0, ismear=0, user_kpoints_settings={"grid_density": 6000})
         # check if users can overwrite settings in this class with the help of user_incar_settings
         self.lobsterset4 = LobsterSet(self.struct, user_incar_settings={"ALGO": "Fast"})
+        # use basis functions supplied by user
+        self.lobsterset5 = LobsterSet(self.struct, user_supplied_basis={"Fe": "3d 3p 4s", "P": "3p 3s", "O": "2p 2s"})
+        with self.assertRaises(ValueError):
+            self.lobsterset6 = LobsterSet(self.struct, user_supplied_basis={"Fe": "3d 3p 4s", "P": "3p 3s"})
+        self.lobsterset7 = LobsterSet(self.struct,
+                                      address_basis_file=os.path.join(MODULE_DIR, "../../BASIS_PBE_54.yaml"))
 
     def test_incar(self):
         incar1 = self.lobsterset1.incar
