@@ -26,23 +26,14 @@ import itertools
 import logging
 import time
 from collections import OrderedDict
-
-from numpy.linalg import svd
-from numpy.linalg import norm
-from pymatgen.core.structure import Structure
-from pymatgen.core.lattice import Lattice
-from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-from pymatgen.analysis.bond_valence import BVAnalyzer
-import numpy as np
-
 from random import shuffle
 
-from pymatgen.analysis.chemenv.utils.coordination_geometry_utils import Plane
-from pymatgen.analysis.chemenv.utils.coordination_geometry_utils import \
-    collinear, separation_in_list
-from pymatgen.analysis.chemenv.utils.coordination_geometry_utils import \
-    sort_separation, sort_separation_tuple
-from pymatgen.analysis.chemenv.utils.defs_utils import chemenv_citations
+import numpy as np
+from numpy.linalg import norm
+from numpy.linalg import svd
+from pymatgen.analysis.bond_valence import BVAnalyzer
+from pymatgen.analysis.chemenv.coordination_environments.chemenv_strategies import \
+    MultiWeightsChemenvStrategy
 from pymatgen.analysis.chemenv.coordination_environments.coordination_geometries import \
     AllCoordinationGeometries
 from pymatgen.analysis.chemenv.coordination_environments.coordination_geometries import \
@@ -52,13 +43,20 @@ from pymatgen.analysis.chemenv.coordination_environments.coordination_geometries
 from pymatgen.analysis.chemenv.coordination_environments.structure_environments import \
     ChemicalEnvironments
 from pymatgen.analysis.chemenv.coordination_environments.structure_environments import \
-    StructureEnvironments
-from pymatgen.analysis.chemenv.coordination_environments.structure_environments import \
     LightStructureEnvironments
+from pymatgen.analysis.chemenv.coordination_environments.structure_environments import \
+    StructureEnvironments
 from pymatgen.analysis.chemenv.coordination_environments.voronoi import \
     DetailedVoronoiContainer
-from pymatgen.analysis.chemenv.coordination_environments.chemenv_strategies import \
-    MultiWeightsChemenvStrategy
+from pymatgen.analysis.chemenv.utils.coordination_geometry_utils import Plane
+from pymatgen.analysis.chemenv.utils.coordination_geometry_utils import \
+    collinear, separation_in_list
+from pymatgen.analysis.chemenv.utils.coordination_geometry_utils import \
+    sort_separation, sort_separation_tuple
+from pymatgen.analysis.chemenv.utils.defs_utils import chemenv_citations
+from pymatgen.core.lattice import Lattice
+from pymatgen.core.structure import Structure
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
 debug = False
 DIST_TOLERANCES = [0.02, 0.05, 0.1, 0.2, 0.3]
@@ -180,6 +178,12 @@ class AbstractGeometry:
     @classmethod
     def from_cg(cls, cg, centering_type='standard',
                 include_central_site_in_centroid=False):
+        """
+        :param cg:
+        :param centering_type:
+        :param include_central_site_in_centroid:
+        :return:
+        """
         central_site = cg.get_central_site()
         bare_coords = [np.array(pt, np.float) for pt in cg.points]
         return cls(central_site=central_site, bare_coords=bare_coords,
@@ -187,41 +191,71 @@ class AbstractGeometry:
                    include_central_site_in_centroid=include_central_site_in_centroid)
 
     def points_wcs_csc(self, permutation=None):
+        """
+        :param permutation:
+        :return:
+        """
         if permutation is None:
             return self._points_wcs_csc
         return np.concatenate((self._points_wcs_csc[0:1], self._points_wocs_csc.take(permutation, axis=0)))
 
     def points_wocs_csc(self, permutation=None):
+        """
+        :param permutation:
+        :return:
+        """
         if permutation is None:
             return self._points_wocs_csc
         return self._points_wocs_csc.take(permutation, axis=0)
 
     def points_wcs_ctwcc(self, permutation=None):
+        """
+        :param permutation:
+        :return:
+        """
         if permutation is None:
             return self._points_wcs_ctwcc
         return np.concatenate((self._points_wcs_ctwcc[0:1], self._points_wocs_ctwcc.take(permutation, axis=0)))
 
     def points_wocs_ctwcc(self, permutation=None):
+        """
+        :param permutation:
+        :return:
+        """
         if permutation is None:
             return self._points_wocs_ctwcc
         return self._points_wocs_ctwcc.take(permutation, axis=0)
 
     def points_wcs_ctwocc(self, permutation=None):
+        """
+        :param permutation:
+        :return:
+        """
         if permutation is None:
             return self._points_wcs_ctwocc
         return np.concatenate((self._points_wcs_ctwocc[0:1], self._points_wocs_ctwocc.take(permutation, axis=0)))
 
     def points_wocs_ctwocc(self, permutation=None):
+        """
+        :param permutation:
+        :return:
+        """
         if permutation is None:
             return self._points_wocs_ctwocc
         return self._points_wocs_ctwocc.take(permutation, axis=0)
 
     @property
     def cn(self):
+        """
+        :return: Coordination number
+        """
         return len(self.coords)
 
     @property
     def coordination_number(self):
+        """
+        :return: Coordination number
+        """
         return len(self.coords)
 
 
@@ -414,8 +448,18 @@ class LocalGeometryFinder:
         self.setup_structure(
             Structure(lattice, species, coords, coords_are_cartesian))
 
-    def compute_coordination_environments(self, structure, indices=None, only_cations=True, strategy=DEFAULT_STRATEGY,
-                                          valences='bond-valence-analysis', initial_structure_environments=None):
+    def compute_coordination_environments(
+            self, structure, indices=None, only_cations=True, strategy=DEFAULT_STRATEGY,
+            valences='bond-valence-analysis', initial_structure_environments=None):
+        """
+        :param structure:
+        :param indices:
+        :param only_cations:
+        :param strategy:
+        :param valences:
+        :param initial_structure_environments:
+        :return:
+        """
         self.setup_structure(structure=structure)
         if valences == 'bond-valence-analysis':
             bva = BVAnalyzer()
@@ -673,9 +717,9 @@ class LocalGeometryFinder:
                                         to_add_from_hints.append({'isite': isite,
                                                                   'new_nb_set': new_nb_set,
                                                                   'cn_new_nb_set': cn_new_nb_set})
-                                        logging.debug('              => to be computed'.format(inew))
+                                        logging.debug('              => to be computed')
                                     else:
-                                        logging.debug('              => already present'.format(inew))
+                                        logging.debug('              => already present')
             logging.debug('    ... getting environments for nb_sets added from hints')
             for missing_nb_set_to_add in to_add_from_hints:
                 se.add_neighbors_set(isite=isite, nb_set=missing_nb_set_to_add['new_nb_set'])
@@ -711,6 +755,16 @@ class LocalGeometryFinder:
         return se
 
     def update_nb_set_environments(self, se, isite, cn, inb_set, nb_set, recompute=False, optimization=None):
+        """
+        :param se:
+        :param isite:
+        :param cn:
+        :param inb_set:
+        :param nb_set:
+        :param recompute:
+        :param optimization:
+        :return:
+        """
         ce = se.get_coordination_environments(isite=isite, cn=cn, nb_set=nb_set)
         if ce is not None and not recompute:
             return ce
@@ -790,6 +844,18 @@ class LocalGeometryFinder:
                                        random_rotation='NONE',
                                        random_scale='NONE',
                                        points=None):
+        """
+        :param symbol:
+        :param randomness:
+        :param max_random_dist:
+        :param symbol_type:
+        :param indices:
+        :param random_translation:
+        :param random_rotation:
+        :param random_scale:
+        :param points:
+        :return:
+        """
         if symbol_type == 'IUPAC':
             cg = self.allcg.get_geometry_from_IUPAC_symbol(symbol)
         elif symbol_type == 'MP' or symbol_type == 'mp_symbol':
@@ -1391,7 +1457,7 @@ class LocalGeometryFinder:
                                   local_plane=local_plane,
                                   points_perfect=points_perfect,
                                   separation_indices=npsep)
-                csm, perm, algo, cgsm_stop_search = cgsm[0], cgsm[1], cgsm[2], cgsm[3]
+                csm, perm, algo, _ = cgsm[0], cgsm[1], cgsm[2], cgsm[3]
                 permutations_symmetry_measures.extend(csm)
                 permutations.extend(perm)
                 for thisperm in perm:
@@ -1470,7 +1536,7 @@ class LocalGeometryFinder:
                                       local_plane=plane,
                                       points_perfect=points_perfect,
                                       separation_indices=separation_indices)
-                    csm, perm, algo, cgsm_stop_search = cgsm[0], cgsm[1], cgsm[2], cgsm[3]
+                    csm, perm, algo, _ = cgsm[0], cgsm[1], cgsm[2], cgsm[3]
                     permutations_symmetry_measures.extend(csm)
                     permutations.extend(perm)
                     for thisperm in perm:
@@ -1570,7 +1636,7 @@ class LocalGeometryFinder:
                 perm1 = [separation_perm[ii] for ii in sep_perm]
                 pp = [perm1[ii] for ii in argref_separation]
                 # Skip permutations that have already been performed
-                if (not tested_permutations) and coordination_geometry.equivalent_indices is not None:
+                if isinstance(tested_permutations, set) and coordination_geometry.equivalent_indices is not None:
                     tuple_ref_perm = coordination_geometry.ref_permutation(pp)
                     if tuple_ref_perm in tested_permutations:
                         continue

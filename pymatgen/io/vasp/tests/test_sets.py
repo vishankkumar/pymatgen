@@ -6,6 +6,7 @@
 import unittest
 import os
 import tempfile
+from zipfile import ZipFile
 from monty.json import MontyDecoder
 from pymatgen.io.vasp.sets import *
 from pymatgen.io.vasp.inputs import Poscar, Kpoints
@@ -14,8 +15,9 @@ from pymatgen.core.surface import SlabGenerator
 from pymatgen.util.testing import PymatgenTest
 from pymatgen.io.vasp.outputs import Vasprun
 
-dec = MontyDecoder()
+MODULE_DIR = Path(__file__).resolve().parent
 
+dec = MontyDecoder()
 
 
 class MITMPRelaxSetTest(PymatgenTest):
@@ -387,6 +389,22 @@ class MPStaticSetTest(PymatgenTest):
                                                   lcalcpol=True)
         self.assertTrue(lcalcpol_vis.incar["LCALCPOL"])
 
+    def test_user_incar_kspacing(self):
+        # Make sure user KSPACING settings properly overrides KPOINTS.
+        si = self.get_structure('Si')
+        vis = MPRelaxSet(si, user_incar_settings={"KSPACING": 0.22})
+        self.assertEqual(vis.incar["KSPACING"], 0.22)
+        self.assertEqual(vis.kpoints, None)
+
+    def test_kspacing_override(self):
+        # If KSPACING is set and user_kpoints_settings are given,
+        # make sure the user_kpoints_settings override KSPACING
+        si = self.get_structure('Si')
+        vis = MPRelaxSet(si, user_incar_settings={"KSPACING": 0.22},
+                         user_kpoints_settings={"reciprocal_density": 1000})
+        self.assertEqual(vis.incar.get("KSPACING"), None)
+        self.assertIsInstance(vis.kpoints, Kpoints)
+
     def test_override_from_prev_calc(self):
         # test override_from_prev
         prev_run = self.TEST_FILES_DIR / "relaxation"
@@ -413,6 +431,21 @@ class MPStaticSetTest(PymatgenTest):
 
         vis = MPStaticSet(original_structure, standardize=True)
         self.assertFalse(sm.fit(vis.structure, original_structure))
+
+    def test_write_spec(self):
+
+        vis = MPStaticSet(self.get_structure("Si"))
+        vis.write_spec()
+
+        self.assertTrue(os.path.exists("MPStaticSet_spec.zip"))
+        with ZipFile("MPStaticSet_spec.zip", "r") as zip:
+            contents = zip.namelist()
+            self.assertSetEqual(set(contents), {"INCAR", "POSCAR",
+                                                "POTCAR.spec", "KPOINTS"})
+            spec = zip.open("POTCAR.spec", "r").read().decode()
+            self.assertEqual(spec, "Si")
+
+        os.remove("MPStaticSet_spec.zip")
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
@@ -884,6 +917,7 @@ class MVLGWSetTest(PymatgenTest):
 
     def tearDown(self):
         warnings.simplefilter("default")
+        shutil.rmtree(self.tmp)
 
     def test_static(self):
         mvlgwsc = MVLGWSet(self.s)
@@ -953,9 +987,6 @@ class MVLGWSetTest(PymatgenTest):
         self.assertEqual(mvlgwgbse1.incar["ANTIRES"], 0)
         self.assertEqual(mvlgwgbse1.incar["NBANDSO"], 20)
         self.assertEqual(mvlgwgbse1.incar["ALGO"], "BSE")
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp)
 
 
 class MPHSEBSTest(PymatgenTest):
@@ -1145,6 +1176,12 @@ class LobsterSetTest(PymatgenTest):
         self.lobsterset3 = LobsterSet(self.struct, isym=0, ismear=0, user_kpoints_settings={"grid_density": 6000})
         # check if users can overwrite settings in this class with the help of user_incar_settings
         self.lobsterset4 = LobsterSet(self.struct, user_incar_settings={"ALGO": "Fast"})
+        # use basis functions supplied by user
+        self.lobsterset5 = LobsterSet(self.struct, user_supplied_basis={"Fe": "3d 3p 4s", "P": "3p 3s", "O": "2p 2s"})
+        with self.assertRaises(ValueError):
+            self.lobsterset6 = LobsterSet(self.struct, user_supplied_basis={"Fe": "3d 3p 4s", "P": "3p 3s"})
+        self.lobsterset7 = LobsterSet(self.struct,
+                                      address_basis_file=os.path.join(MODULE_DIR, "../../BASIS_PBE_54.yaml"))
 
     def test_incar(self):
         incar1 = self.lobsterset1.incar
