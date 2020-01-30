@@ -978,7 +978,10 @@ class VoronoiNN(NearNeighbors):
 
         # Extract the NN info
         siw = []
-        max_weight = max(nn[self.weight] for nn in nns.values())
+        try:
+            max_weight = max(nn[self.weight] for nn in nns.values())
+        except:
+            max_weight = 2.7
         for nstats in nns.values():
             site = nstats['site']
             if nstats[self.weight] > self.tol * max_weight \
