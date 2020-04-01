@@ -1,6 +1,22 @@
 # coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
+
+"""
+This module implements a core class LammpsData for generating/parsing
+LAMMPS data file, and other bridging classes to build LammpsData from
+molecules. This module also implements a subclass CombinedData for
+merging LammpsData object.
+
+Only point particle styles are supported for now (atom_style in angle,
+atomic, bond, charge, full and molecular only). See the pages below for
+more info.
+
+    http://lammps.sandia.gov/doc/atom_style.html
+    http://lammps.sandia.gov/doc/read_data.html
+
+"""
+
 from collections import OrderedDict
 from io import StringIO
 import itertools
@@ -17,20 +33,6 @@ from ruamel.yaml import YAML
 
 from pymatgen.util.io_utils import clean_lines
 from pymatgen import Molecule, Element, Lattice, Structure, SymmOp
-
-"""
-This module implements a core class LammpsData for generating/parsing
-LAMMPS data file, and other bridging classes to build LammpsData from
-molecules.
-
-Only point particle styles are supported for now (atom_style in angle,
-atomic, bond, charge, full and molecular only). See the pages below for
-more info.
-
-    http://lammps.sandia.gov/doc/atom_style.html
-    http://lammps.sandia.gov/doc/read_data.html
-
-"""
 
 __author__ = "Kiran Mathew, Zhi Deng, Tingzheng Hou"
 __copyright__ = "Copyright 2018, The Materials Virtual Lab"
@@ -786,7 +788,8 @@ class LammpsData(MSONable):
         return cls(**items)
 
     @classmethod
-    def from_structure(cls, structure, ff_elements=None, atom_style="charge"):
+    def from_structure(cls, structure, ff_elements=None, atom_style="charge",
+                       is_sort=False):
         """
         Simple constructor building LammpsData from a structure without
         force field parameters and topologies.
@@ -797,10 +800,14 @@ class LammpsData(MSONable):
                 be present due to force field settings but not
                 necessarily in the structure. Default to None.
             atom_style (str): Choose between "atomic" (neutral) and
-            "charge" (charged). Default to "charge".
+                "charge" (charged). Default to "charge".
+            is_sort (bool): whether to sort sites
 
         """
-        s = structure.get_sorted_structure()
+        if is_sort:
+            s = structure.get_sorted_structure()
+        else:
+            s = structure.copy()
         box, symmop = lattice_2_lmpbox(s.lattice)
         coords = symmop.operate_multi(s.cart_coords)
         site_properties = s.site_properties
@@ -825,6 +832,12 @@ class LammpsData(MSONable):
 
     @classmethod
     def from_dict(cls, d):
+        """
+        Constructor that reads in a dictionary.
+
+        Args:
+            d (dict): Dictionary to read.
+        """
         def decode_df(s):
             return pd.read_json(s, orient="split")
         items = dict()
@@ -848,6 +861,10 @@ class LammpsData(MSONable):
         return cls(**items)
 
     def as_dict(self):
+        """
+        Returns the LammpsData as a dict.
+
+        """
         def encode_df(df):
             return df.to_json(orient="split")
         d = dict()
@@ -1195,6 +1212,12 @@ class ForceField(MSONable):
 
     @classmethod
     def from_dict(cls, d):
+        """
+        Constructor that reads in a dictionary.
+
+        Args:
+            d (dict): Dictionary to read.
+        """
         d["mass_info"] = [tuple(m) for m in d["mass_info"]]
         if d.get("topo_coeffs"):
             for v in d["topo_coeffs"].values():
@@ -1221,19 +1244,21 @@ class CombinedData(LammpsData):
 
         """
 
-        self.box = list_of_molecules[0].box
+        max_xyz = coordinates[['x', 'y', 'z']].max().max()
+        min_xyz = coordinates[['x', 'y', 'z']].min().min()
+        self.box = LammpsBox(np.array(3*[[min_xyz - 0.5, max_xyz + 0.5]]))
         self.atom_style = atom_style
         self.n = sum(list_of_numbers)
         self.names = list_of_names
         self.mols = list_of_molecules
         self.nums = list_of_numbers
-        self.masses = pd.concat([mol.masses for mol in self.mols], ignore_index=True)
+        self.masses = pd.concat([mol.masses.copy() for mol in self.mols], ignore_index=True)
         self.masses.index += 1
         all_ff_kws = SECTION_KEYWORDS["ff"] + SECTION_KEYWORDS["class2"]
         ff_kws = [k for k in all_ff_kws if k in self.mols[0].force_field]
         self.force_field = {}
         for kw in ff_kws:
-            self.force_field[kw] = pd.concat([mol.force_field[kw] for mol in self.mols
+            self.force_field[kw] = pd.concat([mol.force_field[kw].copy() for mol in self.mols
                                               if kw in mol.force_field], ignore_index=True)
             self.force_field[kw].index += 1
 
@@ -1241,7 +1266,7 @@ class CombinedData(LammpsData):
         mol_count = 0
         type_count = 0
         for i, mol in enumerate(self.mols):
-            atoms_df = mol.atoms
+            atoms_df = mol.atoms.copy()
             atoms_df['molecule-ID'] += mol_count
             atoms_df['type'] += type_count
             for j in range(self.nums[i]):
@@ -1264,7 +1289,7 @@ class CombinedData(LammpsData):
                 if kw in mol.topology:
                     if kw not in self.topology:
                         self.topology[kw] = pd.DataFrame()
-                    topo_df = mol.topology[kw]
+                    topo_df = mol.topology[kw].copy()
                     topo_df['type'] += count[kw]
                     for col in topo_df.columns[1:]:
                         topo_df[col] += atom_count
@@ -1323,7 +1348,7 @@ class CombinedData(LammpsData):
     def from_lammpsdata(cls, mols, names, list_of_numbers, coordinates, atom_style=None):
         """
         Constructor that can infer atom_style.
-        The input LammpsData objects are used destructively.
+        The input LammpsData objects are used non-destructively.
 
         Args:
             mols: a list of LammpsData of a single cluster.
@@ -1369,7 +1394,8 @@ class CombinedData(LammpsData):
 @deprecated(LammpsData.from_structure,
             "structure_2_lmpdata has been deprecated "
             "in favor of LammpsData.from_structure")
-def structure_2_lmpdata(structure, ff_elements=None, atom_style="charge"):
+def structure_2_lmpdata(structure, ff_elements=None, atom_style="charge",
+                        is_sort=False):
     """
     Converts a structure to a LammpsData object with no force field
     parameters and topologies.
@@ -1381,12 +1407,15 @@ def structure_2_lmpdata(structure, ff_elements=None, atom_style="charge"):
             the structure. Default to None.
         atom_style (str): Choose between "atomic" (neutral) and
             "charge" (charged). Default to "charge".
-
+        is_sort (bool): whether to sort the structure sites
     Returns:
         LammpsData
 
     """
-    s = structure.get_sorted_structure()
+    if is_sort:
+        s = structure.get_sorted_structure()
+    else:
+        s = structure.copy()
 
     a, b, c = s.lattice.abc
     m = s.lattice.matrix

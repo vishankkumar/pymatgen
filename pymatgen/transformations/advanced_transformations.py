@@ -2,6 +2,10 @@
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
+"""
+This module implements more advanced transformations.
+"""
+from typing import Optional
 
 import numpy as np
 from fractions import Fraction
@@ -13,10 +17,13 @@ import logging
 import math
 
 import warnings
+
+from monty.dev import requires
 from monty.fractions import lcm
 from monty.json import MSONable
 
 from pymatgen.core.periodic_table import Element, Specie, get_el_sp, DummySpecie
+from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.transformations.transformation_abc import AbstractTransformation
 from pymatgen.transformations.standard_transformations import (
     SubstitutionTransformation,
@@ -39,11 +46,13 @@ from pymatgen.analysis.gb.grain import GrainBoundaryGenerator
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 from pymatgen.command_line.mcsqs_caller import run_mcsqs
 
-"""
-This module implements more advanced transformations.
-"""
+try:
+    import hiphive  # type: ignore
+except ImportError:
+    hiphive = None
 
-__author__ = "Shyue Ping Ong, Stephen Dacek, Anubhav Jain, Matthew Horton"
+__author__ = "Shyue Ping Ong, Stephen Dacek, Anubhav Jain, Matthew Horton, " \
+             "Alex Ganose"
 __copyright__ = "Copyright 2012, The Materials Project"
 __version__ = "1.0"
 __maintainer__ = "Shyue Ping Ong"
@@ -57,16 +66,26 @@ class ChargeBalanceTransformation(AbstractTransformation):
     """
     This is a transformation that disorders a structure to make it charge
     balanced, given an oxidation state-decorated structure.
-
-    Args:
-        charge_balance_sp: specie to add or remove. Currently only removal
-            is supported
     """
 
     def __init__(self, charge_balance_sp):
+        """
+        Args:
+            charge_balance_sp: specie to add or remove. Currently only removal
+                is supported
+        """
         self.charge_balance_sp = str(charge_balance_sp)
 
     def apply_transformation(self, structure):
+        """
+        Applies the transformation.
+
+        Args:
+            structure: Input Structure
+
+        Returns:
+            Charge balanced structure.
+        """
         charge = structure.charge
         specie = get_el_sp(self.charge_balance_sp)
         num_to_remove = charge / specie.oxi_state
@@ -91,10 +110,12 @@ class ChargeBalanceTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: False"""
         return False
 
 
@@ -104,21 +125,33 @@ class SuperTransformation(AbstractTransformation):
     from a list of transformations and returns one structure for each
     transformation. The primary use for this class is extending a transmuter
     object.
-
-    Args:
-        transformations ([transformations]): List of transformations to apply
-            to a structure. One transformation is applied to each output
-            structure.
-        nstructures_per_trans (int): If the transformations are one-to-many and,
-            nstructures_per_trans structures from each transformation are
-            added to the full list. Defaults to 1, i.e., only best structure.
     """
 
     def __init__(self, transformations, nstructures_per_trans=1):
+        """
+        Args:
+            transformations ([transformations]): List of transformations to apply
+                to a structure. One transformation is applied to each output
+                structure.
+            nstructures_per_trans (int): If the transformations are one-to-many and,
+                nstructures_per_trans structures from each transformation are
+                added to the full list. Defaults to 1, i.e., only best structure.
+        """
+
         self._transformations = transformations
         self.nstructures_per_trans = nstructures_per_trans
 
     def apply_transformation(self, structure, return_ranked_list=False):
+        """
+        Applies the transformation.
+
+        Args:
+            structure: Input Structure
+            return_ranked_list: Number of structures to return.
+
+        Returns:
+            Structures with all transformations applied.
+        """
         if not return_ranked_list:
             raise ValueError(
                 "SuperTransformation has no single best structure"
@@ -151,10 +184,12 @@ class SuperTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: True"""
         return True
 
 
@@ -204,6 +239,16 @@ class MultipleSubstitutionTransformation:
         self.order = order
 
     def apply_transformation(self, structure, return_ranked_list=False):
+        """
+        Applies the transformation.
+
+        Args:
+            structure: Input Structure
+            return_ranked_list: Number of structures to return.
+
+        Returns:
+            Structures with all substitutions applied.
+        """
         if not return_ranked_list:
             raise ValueError(
                 "MultipleSubstitutionTransformation has no single"
@@ -253,10 +298,12 @@ class MultipleSubstitutionTransformation:
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: True"""
         return True
 
 
@@ -265,45 +312,6 @@ class EnumerateStructureTransformation(AbstractTransformation):
     Order a disordered structure using enumlib. For complete orderings, this
     generally produces fewer structures that the OrderDisorderedStructure
     transformation, and at a much faster speed.
-
-    Args:
-        min_cell_size:
-            The minimum cell size wanted. Must be an int. Defaults to 1.
-        max_cell_size:
-            The maximum cell size wanted. Must be an int. Defaults to 1.
-        symm_prec:
-            Tolerance to use for symmetry.
-        refine_structure:
-            This parameter has the same meaning as in enumlib_caller.
-            If you are starting from a structure that has been relaxed via
-            some electronic structure code, it is usually much better to
-            start with symmetry determination and then obtain a refined
-            structure. The refined structure have cell parameters and
-            atomic positions shifted to the expected symmetry positions,
-            which makes it much less sensitive precision issues in enumlib.
-            If you are already starting from an experimental cif, refinment
-            should have already been done and it is not necessary. Defaults
-            to False.
-        enum_precision_parameter (float): Finite precision parameter for
-            enumlib. Default of 0.001 is usually ok, but you might need to
-            tweak it for certain cells.
-        check_ordered_symmetry (bool): Whether to check the symmetry of
-            the ordered sites. If the symmetry of the ordered sites is
-            lower, the lowest symmetry ordered sites is included in the
-            enumeration. This is important if the ordered sites break
-            symmetry in a way that is important getting possible
-            structures. But sometimes including ordered sites
-            slows down enumeration to the point that it cannot be
-            completed. Switch to False in those cases. Defaults to True.
-        max_disordered_sites (int):
-            An alternate parameter to max_cell size. Will sequentially try
-            larger and larger cell sizes until (i) getting a result or (ii)
-            the number of disordered sites in the cell exceeds
-            max_disordered_sites. Must set max_cell_size to None when using
-            this parameter.
-        sort_criteria (str): Sort by Ewald energy ("ewald", must have oxidation
-            states and slow) or by number of sites ("nsites", much faster).
-        timeout (float): timeout in minutes to pass to EnumlibAdaptor
     """
 
     def __init__(
@@ -318,6 +326,46 @@ class EnumerateStructureTransformation(AbstractTransformation):
         sort_criteria="ewald",
         timeout=None,
     ):
+        """
+        Args:
+            min_cell_size:
+                The minimum cell size wanted. Must be an int. Defaults to 1.
+            max_cell_size:
+                The maximum cell size wanted. Must be an int. Defaults to 1.
+            symm_prec:
+                Tolerance to use for symmetry.
+            refine_structure:
+                This parameter has the same meaning as in enumlib_caller.
+                If you are starting from a structure that has been relaxed via
+                some electronic structure code, it is usually much better to
+                start with symmetry determination and then obtain a refined
+                structure. The refined structure have cell parameters and
+                atomic positions shifted to the expected symmetry positions,
+                which makes it much less sensitive precision issues in enumlib.
+                If you are already starting from an experimental cif, refinment
+                should have already been done and it is not necessary. Defaults
+                to False.
+            enum_precision_parameter (float): Finite precision parameter for
+                enumlib. Default of 0.001 is usually ok, but you might need to
+                tweak it for certain cells.
+            check_ordered_symmetry (bool): Whether to check the symmetry of
+                the ordered sites. If the symmetry of the ordered sites is
+                lower, the lowest symmetry ordered sites is included in the
+                enumeration. This is important if the ordered sites break
+                symmetry in a way that is important getting possible
+                structures. But sometimes including ordered sites
+                slows down enumeration to the point that it cannot be
+                completed. Switch to False in those cases. Defaults to True.
+            max_disordered_sites (int):
+                An alternate parameter to max_cell size. Will sequentially try
+                larger and larger cell sizes until (i) getting a result or (ii)
+                the number of disordered sites in the cell exceeds
+                max_disordered_sites. Must set max_cell_size to None when using
+                this parameter.
+            sort_criteria (str): Sort by Ewald energy ("ewald", must have oxidation
+                states and slow) or by number of sites ("nsites", much faster).
+            timeout (float): timeout in minutes to pass to EnumlibAdaptor
+        """
         self.symm_prec = symm_prec
         self.min_cell_size = min_cell_size
         self.max_cell_size = max_cell_size
@@ -335,7 +383,7 @@ class EnumerateStructureTransformation(AbstractTransformation):
 
     def apply_transformation(self, structure, return_ranked_list=False):
         """
-        Return either a single ordered structure or a sequence of all ordered
+        Returns either a single ordered structure or a sequence of all ordered
         structures.
 
         Args:
@@ -462,10 +510,12 @@ class EnumerateStructureTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: True"""
         return True
 
 
@@ -473,19 +523,31 @@ class SubstitutionPredictorTransformation(AbstractTransformation):
     """
     This transformation takes a structure and uses the structure
     prediction module to find likely site substitutions.
-
-    Args:
-        threshold: Threshold for substitution.
-        **kwargs: Args for SubstitutionProbability class lambda_table, alpha
     """
 
     def __init__(self, threshold=1e-2, scale_volumes=True, **kwargs):
+        r"""
+        Args:
+            threshold: Threshold for substitution.
+            scale_volumes: Whether to scale volumes after substitution.
+            **kwargs: Args for SubstitutionProbability class lambda_table, alpha
+        """
         self.kwargs = kwargs
         self.threshold = threshold
         self.scale_volumes = scale_volumes
         self._substitutor = SubstitutionPredictor(threshold=threshold, **kwargs)
 
     def apply_transformation(self, structure, return_ranked_list=False):
+        """
+        Applies the transformation.
+
+        Args:
+            structure: Input Structure
+            return_ranked_list: Number of structures to return.
+
+        Returns:
+            Predicted Structures.
+        """
         if not return_ranked_list:
             raise ValueError(
                 "SubstitutionPredictorTransformation doesn't"
@@ -521,14 +583,24 @@ class SubstitutionPredictorTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: True"""
         return True
 
 
 class MagOrderParameterConstraint(MSONable):
+    """
+    This class can be used to supply MagOrderingTransformation
+    to just a specific subset of species or sites that satisfy the
+    provided constraints. This can be useful for setting an order
+    parameters for, for example, ferrimagnetic structures which
+    might order on certain motifs, with the global order parameter
+    dependent on how many sites satisfy that motif.
+    """
     def __init__(
         self,
         order_parameter,
@@ -537,13 +609,6 @@ class MagOrderParameterConstraint(MSONable):
         site_constraints=None,
     ):
         """
-        This class can be used to supply MagOrderingTransformation
-        to just a specific subset of species or sites that satisfy the
-        provided constraints. This can be useful for setting an order
-        parameters for, for example, ferrimagnetic structures which
-        might order on certain motifs, with the global order parameter
-        dependent on how many sites satisfy that motif.
-
         :param order_parameter (float): any number from 0.0 to 1.0,
             typically 0.5 (antiferromagnetic) or 1.0 (ferromagnetic)
         :param species_constraint (list): str or list of strings
@@ -601,6 +666,12 @@ class MagOrderParameterConstraint(MSONable):
 
 
 class MagOrderingTransformation(AbstractTransformation):
+    """
+    This transformation takes a structure and returns a list of collinear
+    magnetic orderings. For disordered structures, make an ordered
+    approximation first.
+    """
+
     def __init__(
         self,
         mag_species_spin,
@@ -609,10 +680,6 @@ class MagOrderingTransformation(AbstractTransformation):
         **kwargs
     ):
         """
-        This transformation takes a structure and returns a list of collinear
-        magnetic orderings. For disordered structures, make an ordered
-        approximation first.
-
         :param mag_species_spin: A mapping of elements/species to their
             spin magnitudes, e.g. {"Fe3+": 5, "Mn3+": 4}
         :param order_parameter (float or list): if float, a specifies a
@@ -741,8 +808,6 @@ class MagOrderingTransformation(AbstractTransformation):
             }
             for symbol, constraint in zip(dummy_species_symbols, order_parameters)
         ]
-
-        sites_to_add = []
 
         for idx, site in enumerate(dummy_struct):
             satisfies_constraints = [
@@ -939,10 +1004,12 @@ class MagOrderingTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: True"""
         return True
 
 
@@ -993,7 +1060,7 @@ class DopingTransformation(AbstractTransformation):
         allowed_doping_species=None,
         **kwargs
     ):
-        """
+        r"""
         Args:
             dopant (Specie-like): E.g., Al3+. Must have oxidation state.
             ionic_radius_tol (float): E.g., Fractional allowable ionic radii
@@ -1015,7 +1082,7 @@ class DopingTransformation(AbstractTransformation):
             allowed_doping_species (list): Species that are allowed to be
                 doping sites. This is an inclusionary list. If specified,
                 any sites which are not
-            \\*\\*kwargs:
+            **kwargs:
                 Same keyword args as :class:`EnumerateStructureTransformation`,
                 i.e., min_cell_size, etc.
         """
@@ -1195,17 +1262,18 @@ class DopingTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: True"""
         return True
 
 
 class SlabTransformation(AbstractTransformation):
     """
     A transformation that creates a slab from a structure.
-
     """
 
     def __init__(
@@ -1247,6 +1315,15 @@ class SlabTransformation(AbstractTransformation):
         self.tol = 0.1
 
     def apply_transformation(self, structure):
+        """
+        Applies the transformation.
+
+        Args:
+            structure: Input Structure
+
+        Returns:
+            Slab Structures.
+        """
         sg = SlabGenerator(
             structure,
             self.miller_index,
@@ -1263,11 +1340,13 @@ class SlabTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
-        return None
+        """Returns: False"""
+        return False
 
 
 class DisorderOrderedTransformation(AbstractTransformation):
@@ -1296,7 +1375,8 @@ class DisorderOrderedTransformation(AbstractTransformation):
             structure: ordered structure
             return_ranked_list: as in other pymatgen Transformations
 
-        Returns: transformed disordered structure(s)
+        Returns:
+            Transformed disordered structure(s)
         """
 
         if not structure.is_ordered:
@@ -1328,10 +1408,12 @@ class DisorderOrderedTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: True"""
         return True
 
     @staticmethod
@@ -1420,21 +1502,19 @@ class GrainBoundaryTransformation(AbstractTransformation):
     A transformation that creates a gb from a bulk structure.
     """
 
-    def __init__(
-        self,
-        rotation_axis,
-        rotation_angle,
-        expand_times=4,
-        vacuum_thickness=0.0,
-        ab_shift=[0, 0],
-        normal=False,
-        ratio=None,
-        plane=None,
-        max_search=20,
-        tol_coi=1.0e-8,
-        rm_ratio=0.7,
-        quick_gen=False,
-    ):
+    def __init__(self,
+                 rotation_axis,
+                 rotation_angle,
+                 expand_times=4,
+                 vacuum_thickness=0.0,
+                 ab_shift=[0, 0],
+                 normal=False,
+                 ratio=None,
+                 plane=None,
+                 max_search=20,
+                 tol_coi=1.0e-8,
+                 rm_ratio=0.7,
+                 quick_gen=False):
         """
         Args:
             rotation_axis (list): Rotation axis of GB in the form of a list of integer
@@ -1504,6 +1584,16 @@ class GrainBoundaryTransformation(AbstractTransformation):
         self.quick_gen = quick_gen
 
     def apply_transformation(self, structure):
+        """
+        Applies the transformation.
+
+        Args:
+            structure: Input Structure
+            return_ranked_list: Number of structures to return.
+
+        Returns:
+            Grain boundary Structures.
+        """
         gbg = GrainBoundaryGenerator(structure)
         gb_struct = gbg.gb_from_parameters(
             self.rotation_axis,
@@ -1523,151 +1613,53 @@ class GrainBoundaryTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: False"""
         return False
 
 
 class CubicSupercellTransformation(AbstractTransformation):
     """
-    A transformation that aims to generate a nearly cubic supercell structure from a structure.
+    A transformation that aims to generate a nearly cubic supercell structure
+    from a structure.
 
-    The algorithm solves for a transformation matrix that makes the supercell cubic. The matrix
-    must have integer entries, so entries are rounded (in such a way that forces the matrix to be
-    nonsingular). From the supercell resulting from this transformation matrix, vector projections
-    are used to determine the side length of the largest cube that can fit inside the supercell.
-    The algorithm will iteratively increase the size of the supercell until the largest inscribed
-    cube's side length is at least 'num_nn_dists' times the nearest neighbor distance and the
-    number of atoms in the supercell falls in the range ['min_atoms', 'max_atoms'].
+    The algorithm solves for a transformation matrix that makes the supercell
+    cubic. The matrix must have integer entries, so entries are rounded (in such
+    a way that forces the matrix to be nonsingular). From the supercell
+    resulting from this transformation matrix, vector projections are used to
+    determine the side length of the largest cube that can fit inside the
+    supercell. The algorithm will iteratively increase the size of the supercell
+    until the largest inscribed cube's side length is at least 'min_length'
+    and the number of atoms in the supercell falls in the range
+    ``min_atoms < n < max_atoms``.
     """
 
     def __init__(
         self,
-        min_atoms=None,
-        max_atoms=None,
-        num_nn_dists=5,
-        force_diagonal_transformation=False,
+        min_atoms: Optional[int] = None,
+        max_atoms: Optional[int] = None,
+        min_length: float = 15.,
+        force_diagonal: bool = False,
     ):
         """
-        Returns a supercell structure given a Pymatgen structure suitable for
-        Compressed Sensing Lattice Dynamics (CSLD). See papers below for details
-        on CSLD.
-
-        doi: 10.1103/PhysRevLett.113.185501
-        https://arxiv.org/abs/1805.08904
-        https://arxiv.org/abs/1805.08903
-
         Args:
-            structure (Structure): input structure.
-            max_atoms (int): maximum number of atoms allowed in the supercell
-            min_atoms (int): minimum number of atoms allowed in the supercell
-            num_nn_dists (int): number of multiples of atomic nearest neighbor
-                distances to force all directions of the supercell to be at
-                least as large
-            force_diagonal_transformation (bool): If true, return a
-                transformation with a diagonal transformation matrix. Else,
-                do not impose this constraint (leading to a better result).
-        Returns:
-            Supercell structure (Structure)
+            max_atoms: Maximum number of atoms allowed in the supercell.
+            min_atoms: Minimum number of atoms allowed in the supercell.
+            min_length: Minimum length of the smallest supercell lattice vector.
+            force_diagonal: If True, return a transformation with a diagonal
+                transformation matrix.
         """
-        if min_atoms is None:
-            min_atoms = -np.Inf
-        if max_atoms is None:
-            max_atoms = np.Inf
+        self.min_atoms = min_atoms if min_atoms else -np.Inf
+        self.max_atoms = max_atoms if max_atoms else np.Inf
+        self.min_length = min_length
+        self.force_diagonal = force_diagonal
+        self.transformation_matrix = None
 
-        self.min_atoms = min_atoms
-        self.max_atoms = max_atoms
-        self.num_nn_dists = num_nn_dists
-        self.force_diagonal_transformation = force_diagonal_transformation
-
-        # Variables to be solved for by 'apply_transformation()'
-        self.smallest_dim = (
-            None
-        )  # norm of smallest direction of the resulting supercell
-        self.trans_mat = None  # transformation matrix
-        self.nn_dist = None
-
-    def _round_away_from_zero(self, x):
-        """
-        Returns 'x' rounded to the next integer away from 0.
-        If 'x' is zero, then returns zero.
-        E.g. -1.2 rounds to -2.0. 1.2 rounds to 2.0.
-
-        Args:
-            x (float): Number to be rounded to the next
-                integer away from 0.
-        Returns:
-            Number (float) rounded away from zero.
-        """
-        aX = abs(x)
-        return math.ceil(aX) * (aX / x) if x != 0 else 0
-
-    def _round_and_make_arr_singular(self, arr):
-        """
-        This function rounds all elements of a matrix to the nearest integer,
-        unless the rounding scheme causes the matrix to be singular, in which
-        case elements of zero rows or columns in the rounded matrix with the
-        largest absolute valued magnitude in the unrounded matrix will be
-        rounded to the next integer away from zero rather than to the
-        nearest integer.
-
-        Args:
-            array (np.ndarray): Matrix to be transformed
-        Returns:
-            transformed array (np.ndarray): Transformed matrix. The transformation
-                is as follows. First, all entries in 'arr' will be rounded to the
-                nearest integer to yield 'arr_rounded'. If 'arr_rounded' has any
-                zero rows, then one element in each zero row of 'arr_rounded'
-                corresponding to the element in 'arr' of that row with the
-                largest absolute valued magnitude will be rounded to the next
-                integer away from zero (see the '_round_away_from_zero(x)'
-                function) rather than the nearest integer. This process is then
-                repeated for zero columns. Also note that if 'arr' already has
-                zero rows or columns, then this function will not change those
-                rows/columns.
-        """
-        arr_rounded = np.around(arr)
-
-        # Zero rows in 'arr_rounded' make the array singular,
-        #   so force zero rows to be nonzero
-        if (~arr_rounded.any(axis=1)).any():  # Check for zero rows in T_rounded
-            # indices of zero rows
-            zero_row_idxs = np.where(~arr_rounded.any(axis=1))[0]
-
-            for zero_row_idx in zero_row_idxs:  # loop over zero rows
-                zero_row = arr[zero_row_idx, :]
-
-                # Find the element of the zero row with the largest absolute
-                #   magnitude in the original (non-rounded) array (i.e. 'arr')
-                col_idx_to_fix = np.where(
-                    np.absolute(zero_row) == np.amax(np.absolute(zero_row))
-                )[0]
-
-                # Break ties for the largest absolute magnitude
-                col_idx_to_fix = col_idx_to_fix[np.random.randint(len(col_idx_to_fix))]
-
-                # Round the chosen element away from zero
-                arr_rounded[zero_row_idx, col_idx_to_fix] = self._round_away_from_zero(
-                    arr[zero_row_idx, col_idx_to_fix]
-                )
-
-        # Repeat process for zero columns
-        if (~arr_rounded.any(axis=0)).any():  # Check for zero columns in T_rounded
-            zero_col_idxs = np.where(~arr_rounded.any(axis=0))[0]
-            for zero_col_idx in zero_col_idxs:
-                zero_col = arr[:, zero_col_idx]
-                row_idx_to_fix = np.where(
-                    np.absolute(zero_col) == np.amax(np.absolute(zero_col))
-                )[0]
-                for i in row_idx_to_fix:
-                    arr_rounded[i, zero_col_idx] = self._round_away_from_zero(
-                        arr[i, zero_col_idx]
-                    )
-        return arr_rounded.astype(int)
-
-    def apply_transformation(self, structure):
+    def apply_transformation(self, structure: Structure) -> Structure:
         """
         The algorithm solves for a transformation matrix that makes the
         supercell cubic. The matrix must have integer entries, so entries are
@@ -1678,135 +1670,143 @@ class CubicSupercellTransformation(AbstractTransformation):
         increase the size of the supercell until the largest inscribed cube's
         side length is at least 'num_nn_dists' times the nearest neighbor
         distance and the number of atoms in the supercell falls in the range
-        ['min_atoms', 'max_atoms'].
+        defined by min_atoms and max_atoms.
 
         Returns:
-            supercell (Structure)
+            supercell: Transformed supercell.
         """
 
         lat_vecs = structure.lattice.matrix
-        bond_matrix = structure.distance_matrix
-        np.fill_diagonal(bond_matrix, np.Inf)
-        self.nn_dist = np.amin(bond_matrix)
 
-        if not structure:
-            raise AttributeError("No structure was passed into gen_scaling_matrix()")
+        # boolean for if a sufficiently large supercell has been created
+        sc_not_found = True
+
+        if self.force_diagonal:
+            # trans_mat_diagonal holds the diagonal of the trans_mat
+            trans_mat_diagonal = np.array([0, 0, 0])
+            trans_mat_diagonal_update = np.array([1, 1, 1])
         else:
-            # boolean for if a sufficiently large supercell has been created
-            sc_not_found = True
+            # target_threshold is used as the desired cubic side lengths
+            target_sc_size = self.min_length
 
-            # minimum distance any direction of the supercell must be as large as
-            hard_sc_size_threshold = self.nn_dist * self.num_nn_dists
+        while sc_not_found:
+            if self.force_diagonal:
+                # Update trans_mat (with diagonal constraint)
+                trans_mat_diagonal += trans_mat_diagonal_update
+                self.transformation_matrix = np.diag(trans_mat_diagonal)
 
-            if self.force_diagonal_transformation:
-                # trans_mat_diagonal holds the diagonal of the trans_mat
-                trans_mat_diagonal = np.array([0, 0, 0])
-                trans_mat_diagonal_update = np.array([1, 1, 1])
             else:
-                # target_threshold is used as the desired cubic side lengths of the supercell
-                target_sc_size = hard_sc_size_threshold
-            while sc_not_found:
-                if self.force_diagonal_transformation:
-                    # Update trans_mat (with diagonal constraint)
-                    trans_mat_diagonal += trans_mat_diagonal_update
-                    self.trans_mat = np.diag(trans_mat_diagonal)
-                else:
-                    # Update trans_mat (without diagonal constraint)
-                    target_sc_lat_vecs = np.eye(3, 3) * target_sc_size
-                    self.trans_mat = np.linalg.inv(lat_vecs) @ target_sc_lat_vecs
+                # Update trans_mat (without diagonal constraint)
+                target_sc_lat_vecs = np.eye(3, 3) * target_sc_size
 
-                    # round the entries of T and force T to be nonsingular
-                    self.trans_mat = self._round_and_make_arr_singular(self.trans_mat)
-
-                proposed_sc_lat_vecs = self.trans_mat @ lat_vecs
-
-                # Find the shortest dimension length and direction
-                a = proposed_sc_lat_vecs[0]
-                b = proposed_sc_lat_vecs[1]
-                c = proposed_sc_lat_vecs[2]
-
-                length1_vec = c - _proj(c, a)  # a-c plane
-                length2_vec = a - _proj(a, c)
-                length3_vec = b - _proj(b, a)  # b-a plane
-                length4_vec = a - _proj(a, b)
-                length5_vec = b - _proj(b, c)  # b-c plane
-                length6_vec = c - _proj(c, b)
-                length_vecs = np.array(
-                    [
-                        length1_vec,
-                        length2_vec,
-                        length3_vec,
-                        length4_vec,
-                        length5_vec,
-                        length6_vec,
-                    ]
+                self.transformation_matrix = (
+                        np.linalg.inv(lat_vecs) @ target_sc_lat_vecs
                 )
 
-                lengths = np.linalg.norm(length_vecs, axis=1)
-                self.smallest_dim = np.amin(lengths)  # shortest length
-                smallest_dim_idx = np.argmin(lengths)
-                smallest_dim_vec = length_vecs[smallest_dim_idx]  # shortest direction
+                # round the entries of T and force T to be nonsingular
+                self.transformation_matrix = _round_and_make_arr_singular(
+                    self.transformation_matrix
+                )
 
-                # Get number of atoms
-                superstructure = SupercellTransformation(
-                    self.trans_mat
-                ).apply_transformation(structure)
-                num_at = superstructure.num_sites
+            proposed_sc_lat_vecs = self.transformation_matrix @ lat_vecs
 
-                # Check if constraints are satisfied
-                if (
-                    self.smallest_dim >= hard_sc_size_threshold
-                    and num_at >= self.min_atoms
-                    and num_at <= self.max_atoms
-                ):
-                    return superstructure
+            # Find the shortest dimension length and direction
+            a = proposed_sc_lat_vecs[0]
+            b = proposed_sc_lat_vecs[1]
+            c = proposed_sc_lat_vecs[2]
+
+            length1_vec = c - _proj(c, a)  # a-c plane
+            length2_vec = a - _proj(a, c)
+            length3_vec = b - _proj(b, a)  # b-a plane
+            length4_vec = a - _proj(a, b)
+            length5_vec = b - _proj(b, c)  # b-c plane
+            length6_vec = c - _proj(c, b)
+            length_vecs = np.array(
+                [
+                    length1_vec,
+                    length2_vec,
+                    length3_vec,
+                    length4_vec,
+                    length5_vec,
+                    length6_vec,
+                ]
+            )
+
+            lengths = np.linalg.norm(length_vecs, axis=1)
+            smallest_dim = np.amin(lengths)  # shortest length
+            smallest_dim_idx = np.argmin(lengths)
+            # shortest direction
+            smallest_dim_vec = length_vecs[smallest_dim_idx]
+
+            # Get number of atoms
+            st = SupercellTransformation(self.transformation_matrix)
+            superstructure = st.apply_transformation(structure)
+            num_at = superstructure.num_sites
+
+            # Check if constraints are satisfied
+            if (
+                smallest_dim >= self.min_length
+                and self.min_atoms <= num_at <= self.max_atoms
+            ):
+                return superstructure
+            else:
+                # Increase threshold until proposed supercell meets requirements
+                if self.force_diagonal:
+                    # Find which supercell lattice vector contributes most to
+                    # the shortest dimension
+                    sc_latvec1_proj_mag = np.linalg.norm(
+                        _proj(proposed_sc_lat_vecs[0], smallest_dim_vec)
+                    )
+                    sc_latvec2_proj_mag = np.linalg.norm(
+                        _proj(proposed_sc_lat_vecs[1], smallest_dim_vec)
+                    )
+                    sc_latvec3_proj_mag = np.linalg.norm(
+                        _proj(proposed_sc_lat_vecs[2], smallest_dim_vec)
+                    )
+                    sc_latvec_proj_mags = [
+                        sc_latvec1_proj_mag,
+                        sc_latvec2_proj_mag,
+                        sc_latvec3_proj_mag,
+                    ]
+                    sc_proj_max_idx = sc_latvec_proj_mags.index(
+                        max(sc_latvec_proj_mags)
+                    )
+
+                    # Increase the corresponding supercell lattice vector size
+                    trans_mat_diagonal_update = np.array([0, 0, 0])
+                    np.put(trans_mat_diagonal_update, sc_proj_max_idx, 1)
                 else:
-                    # Increase threshold until proposed supercell meets requirements
-                    if self.force_diagonal_transformation:
-                        # Find which supercell lattice vector contributes most to
-                        # the shortest dimension
-                        sc_latvec1_proj_mag = np.linalg.norm(
-                            _proj(proposed_sc_lat_vecs[0], smallest_dim_vec)
-                        )
-                        sc_latvec2_proj_mag = np.linalg.norm(
-                            _proj(proposed_sc_lat_vecs[1], smallest_dim_vec)
-                        )
-                        sc_latvec3_proj_mag = np.linalg.norm(
-                            _proj(proposed_sc_lat_vecs[2], smallest_dim_vec)
-                        )
-                        sc_latvec_proj_mags = [
-                            sc_latvec1_proj_mag,
-                            sc_latvec2_proj_mag,
-                            sc_latvec3_proj_mag,
-                        ]
-                        sc_proj_max_idx = sc_latvec_proj_mags.index(
-                            max(sc_latvec_proj_mags)
-                        )
+                    target_sc_size += 0.1
 
-                        # Increase the corresponding supercell lattice vector size
-                        trans_mat_diagonal_update = np.array([0, 0, 0])
-                        np.put(trans_mat_diagonal_update, sc_proj_max_idx, 1)
-                    else:
-                        target_sc_size += 0.1
-                    if num_at > self.max_atoms:
-                        raise AttributeError(
-                            "While trying to solve for the "
-                            "supercell, the max number of atoms"
-                            " was exceeded. Try lowering the "
-                            "number of nearest neighbor "
-                            "distances."
-                        )
+                if num_at > self.max_atoms:
+                    raise AttributeError(
+                        "While trying to solve for the supercell, the max "
+                        "number of atoms was exceeded. Try lowering the number"
+                        "of nearest neighbor distances."
+                    )
+        raise AttributeError("Unable to find cubic supercell")
 
     @property
     def inverse(self):
+        """
+        Returns:
+            None
+        """
         return None
 
     @property
     def is_one_to_many(self):
+        """
+        Returns:
+            False
+        """
         return False
 
 
 class AddAdsorbateTransformation(AbstractTransformation):
+    """
+    Create absorbate structures.
+    """
     def __init__(
         self,
         adsorbate,
@@ -1890,14 +1890,99 @@ class AddAdsorbateTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: True"""
         return True
 
 
+def _round_and_make_arr_singular(arr: np.ndarray) -> np.ndarray:
+    """
+    This function rounds all elements of a matrix to the nearest integer,
+    unless the rounding scheme causes the matrix to be singular, in which
+    case elements of zero rows or columns in the rounded matrix with the
+    largest absolute valued magnitude in the unrounded matrix will be
+    rounded to the next integer away from zero rather than to the
+    nearest integer.
+
+    The transformation is as follows. First, all entries in 'arr' will be
+    rounded to the nearest integer to yield 'arr_rounded'. If 'arr_rounded'
+    has any zero rows, then one element in each zero row of 'arr_rounded'
+    corresponding to the element in 'arr' of that row with the largest
+    absolute valued magnitude will be rounded to the next integer away from
+    zero (see the '_round_away_from_zero(x)' function) rather than the
+    nearest integer. This process is then repeated for zero columns. Also
+    note that if 'arr' already has zero rows or columns, then this function
+    will not change those rows/columns.
+
+    Args:
+        arr: Input matrix
+
+    Returns:
+        Transformed matrix.
+    """
+    def round_away_from_zero(x):
+        """
+        Returns 'x' rounded to the next integer away from 0.
+        If 'x' is zero, then returns zero.
+        E.g. -1.2 rounds to -2.0. 1.2 rounds to 2.0.
+        """
+        abs_x = abs(x)
+        return math.ceil(abs_x) * (abs_x / x) if x != 0 else 0
+
+    arr_rounded = np.around(arr)
+
+    # Zero rows in 'arr_rounded' make the array singular, so force zero rows to
+    # be nonzero
+    if (~arr_rounded.any(axis=1)).any():
+        # Check for zero rows in T_rounded
+
+        # indices of zero rows
+        zero_row_idxs = np.where(~arr_rounded.any(axis=1))[0]
+
+        for zero_row_idx in zero_row_idxs:  # loop over zero rows
+            zero_row = arr[zero_row_idx, :]
+
+            # Find the element of the zero row with the largest absolute
+            # magnitude in the original (non-rounded) array (i.e. 'arr')
+            matches = np.absolute(zero_row) == np.amax(np.absolute(zero_row))
+            col_idx_to_fix = np.where(matches)[0]
+
+            # Break ties for the largest absolute magnitude
+            r_idx = np.random.randint(len(col_idx_to_fix))
+            col_idx_to_fix = col_idx_to_fix[r_idx]
+
+            # Round the chosen element away from zero
+            arr_rounded[zero_row_idx, col_idx_to_fix] = round_away_from_zero(
+                arr[zero_row_idx, col_idx_to_fix]
+            )
+
+    # Repeat process for zero columns
+    if (~arr_rounded.any(axis=0)).any():
+
+        # Check for zero columns in T_rounded
+        zero_col_idxs = np.where(~arr_rounded.any(axis=0))[0]
+        for zero_col_idx in zero_col_idxs:
+            zero_col = arr[:, zero_col_idx]
+            matches = np.absolute(zero_col) == np.amax(np.absolute(zero_col))
+            row_idx_to_fix = np.where(matches)[0]
+
+            for i in row_idx_to_fix:
+                arr_rounded[i, zero_col_idx] = round_away_from_zero(
+                    arr[i, zero_col_idx]
+                )
+    return arr_rounded.astype(int)
+
+
 class SubstituteSurfaceSiteTransformation(AbstractTransformation):
+    """
+    Use AdsorptionSiteFinder to perform substitution-type doping on the surface
+    and returns all possible configurations where one dopant is substituted
+    per surface. Can substitute one surface or both.
+    """
     def __init__(
         self,
         atom,
@@ -1910,11 +1995,6 @@ class SubstituteSurfaceSiteTransformation(AbstractTransformation):
         dist_from_surf=0,
     ):
         """
-        Use AdsorptionSiteFinder to perform substitution-type doping on the surface and
-        returns all possible configurations where one dopant is substituted
-        per surface. Can substitute one surface or both.
-
-
         Args:
             atom (str): atom corresponding to substitutional dopant
             selective_dynamics (bool): flag for whether to assign
@@ -1979,10 +2059,12 @@ class SubstituteSurfaceSiteTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: True"""
         return True
 
 
@@ -2034,8 +2116,111 @@ class SQSTransformation(AbstractTransformation):
 
     @property
     def inverse(self):
+        """Returns: None"""
         return None
 
     @property
     def is_one_to_many(self):
+        """Returns: False"""
+        return False
+
+
+@requires(hiphive, "hiphive is required for MonteCarloRattleTransformation")
+class MonteCarloRattleTransformation(AbstractTransformation):
+    r"""
+    Uses a Monte Carlo rattle procedure to randomly perturb the sites in a
+    structure.
+
+    This class requires the hiPhive package to be installed.
+
+    Rattling atom `i` is carried out as a Monte Carlo move that is accepted with
+    a probability determined from the minimum interatomic distance
+    :math:`d_{ij}`.  If :math:`\\min(d_{ij})` is smaller than :math:`d_{min}`
+    the move is only accepted with a low probability.
+
+    This process is repeated for each atom a number of times meaning
+    the magnitude of the final displacements is not *directly*
+    connected to `rattle_std`.
+    """
+
+    def __init__(
+        self,
+        rattle_std: float,
+        min_distance: float,
+        seed: Optional[int] = None,
+        **kwargs
+    ):
+        """
+        Args:
+            rattle_std: Rattle amplitude (standard deviation in normal
+                distribution). Note: this value is not *directly* connected to the
+                final average displacement for the structures
+            min_distance: Interatomic distance used for computing the probability
+                for each rattle move.
+            seed: Seed for setting up NumPy random state from which random numbers
+                are generated. If ``None``, a random seed will be generated
+                (default). This option allows the output of this transformation
+                to be deterministic.
+            **kwargs: Additional keyword arguments to be passed to the hiPhive
+                mc_rattle function.
+        """
+        self.rattle_std = rattle_std
+        self.min_distance = min_distance
+        self.seed = seed
+
+        if not seed:
+            # if seed is None, use a random RandomState seed but make sure
+            # we store that the original seed was None
+            seed = np.random.randint(1, 1000000000)
+
+        self.random_state = np.random.RandomState(seed)
+        self.kwargs = kwargs
+
+    def apply_transformation(self, structure: Structure) -> Structure:
+        """
+        Apply the transformation.
+
+        Args:
+            structure: Input Structure
+
+        Returns:
+            Structure with sites perturbed.
+        """
+        from hiphive.structure_generation.rattle import (  # type: ignore
+            mc_rattle
+        )
+
+        atoms = AseAtomsAdaptor.get_atoms(structure)
+        seed = self.random_state.randint(1, 1000000000)
+        displacements = mc_rattle(
+            atoms, self.rattle_std, self.min_distance, seed=seed, **self.kwargs
+        )
+
+        transformed_structure = Structure(
+            structure.lattice,
+            structure.species,
+            structure.cart_coords + displacements,
+            coords_are_cartesian=True
+        )
+
+        return transformed_structure
+
+    def __str__(self):
+        return "{} : rattle_std = {}".format(__name__, self.rattle_std)
+
+    def __repr__(self):
+        return self.__str__()
+
+    @property
+    def inverse(self):
+        """
+        Returns: None
+        """
+        return None
+
+    @property
+    def is_one_to_many(self):
+        """
+        Returns: False
+        """
         return False
