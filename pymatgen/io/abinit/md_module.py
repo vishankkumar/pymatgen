@@ -18,7 +18,7 @@ class MDWork(Work):
     and the lattice parameters are optimized. The third task performs MD calculations
     """
     counter = 0
-    _DEFAULT_PARAMS = dict(pseudos=None, ecut = 32, ngkpt = np.array((2,2,2)), occopt = 1, 
+    _DEFAULT_PARAMS = dict(pseudos=None, ecut = 35, ngkpt = np.array((2,2,2)), occopt = 1, 
         tsmear = 0.01, nshiftk = 1, shiftk = np.array((0.0,0.0,0.0)), element_rem = "Li", target_count = 3, tolmxf = 1e-6, tolvar='toldff',tolval=1e-7, 
         optcell = 2,mdtime = 1, md_temp = 1000, md_ionmov = 12)
 
@@ -47,8 +47,8 @@ class MDWork(Work):
         first.ion_task = first.register_relax_task(ion_input)
         first.ioncell_task = first.register_relax_task(ioncell_input)
         first.md_task = first.register_relax_task(md_input)
-        first.ioncell_task.lock(source_node=first.ion_task)
-        #first.md_task.lock(source_node=first.ion_task)
+        
+        first.ioncell_task.add_deps ({first.ion_task: "@structure"})
         first.md_task.add_deps ({first.ioncell_task: "@structure"})
         
         first.transfer_done = False
@@ -119,20 +119,23 @@ class MDWork(Work):
         inp = abilab.AbinitInput(structure=structure,
             pseudos=self.params['pseudos'])
         #nelec = structure.num_valence_electrons(pseudos=pseudos)#"../pseudos/14si_new_GGA_PBE.pspnc")
-        #nbdbuf=np.ceil(0.5*nelec/2)
+        nelec = structure.num_valence_electrons(pseudos=self.params['pseudos']) 
+        nbdbuf=np.ceil(0.05*nelec/2)
+        temp = int(nelec/2+nbdbuf+8)
         inp.set_vars(
             #nbdbuf=int(nbdbuf),
             ecut=self.params['ecut'],
     	    paral_kgb=1,
-            #nband=int(nelec/2 + nbdbuf),
+            nband = temp -temp%4,
             nstep=100,
             tolrff=self.params['tolrff'],
     	    chkprim=0,
             chksymbreak=0,
     	    nsym=1,
-            ngkpt=self.params['ngkpt'],
-    	    nshiftk=self.params['nshiftk'],
-    	    shiftk=self.params['shiftk'],
+            kptopt=0, 
+            nkpt=1, #self.params['ngkpt'],
+    	    nshiftk=1, #self.params['nshiftk'],
+    	    shiftk=[0.0, 0.0, 0.0], #self.params['shiftk'],
             prtden=0,
             prtwf=-1
             )
@@ -152,7 +155,7 @@ class MDWork(Work):
     def remove_atom(self,structure,element):
         print (element)
         try:
-            sites=[isite for isite, site in enumerate(structure) if Element(element) in site.species_and_occu]
+            sites=[isite for isite, site in enumerate(structure) if Element(element) in site.species]
             rem_site=random.choice(sites)
             return structure.remove_sites([rem_site])
         except:
@@ -194,7 +197,7 @@ class MDWork(Work):
                 print ('New work has already been created, check your flow')
                 sys.exit()
             new_structure = self.md_task.get_final_structure()
-            num_sites = len([isite for isite, site in enumerate(new_structure) if Element(self.params['element_rem']) in site.species_and_occu])
+            num_sites = len([isite for isite, site in enumerate(new_structure) if Element(self.params['element_rem']) in site.species])
             print ("Printing the counter value %s" % MDWork.counter)
             print ("Printing the target count %s" % self.params['target_count'])
             print ('Number of atoms left to be removed: {}'.format(num_sites))
@@ -223,7 +226,7 @@ class MDWork(Work):
                     self.flow.build_and_pickle_dump()
                     self.count() #MDWork.counter+=1
                     self.new_work_created = True
-                    print ('New work created {}, counter value is: {}'.format(self.new_work_created,MDWork.counter))
+                    print ('New work created {}, counter value is: {}'.format(self.new_work_created, MDWork.counter))
                 except:
                     print ("Error in creating a new work")
             else:
@@ -309,7 +312,7 @@ class my_MDWork(MDWork):
                 print ('New work has already been created, check your flow')
                 sys.exit()
             new_structure = self.task5.get_final_structure()
-            num_sites = len([isite for isite, site in enumerate(new_structure) if Element(self.params['element_rem']) in site.species_and_occu])
+            num_sites = len([isite for isite, site in enumerate(new_structure) if Element(self.params['element_rem']) in site.species])
             print ("Printing the counter value %s" % my_MDWork.counter)
             print ("Printing the target count %s" % self.params['target_count'])
             print ('Number of atoms left to be removed: {}'.format(num_sites))
