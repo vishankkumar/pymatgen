@@ -416,10 +416,10 @@ class StructureMatcher(MSONable):
                 s2comp += s2.composition[el]
             fu = s2comp / s1comp
         else:
-            try:
-                el = get_el_sp(self._supercell_size)
+            el = get_el_sp(self._supercell_size)
+            if (el in s2.composition) and (el in s1.composition):
                 fu = s2.composition[el] / s1.composition[el]
-            except ValueError:
+            else:
                 raise ValueError('Invalid argument for supercell_size.')
 
         if fu < 2 / 3:
@@ -767,7 +767,7 @@ class StructureMatcher(MSONable):
 
         Args:
             s_list ([Structure]): List of structures to be grouped
-            anonymous (bool): Wheher to use anonymous mode.
+            anonymous (bool): Whether to use anonymous mode.
 
         Returns:
             A list of lists of matched structures
@@ -825,7 +825,11 @@ class StructureMatcher(MSONable):
                 "ltol": self.ltol,
                 "angle_tol": self.angle_tol,
                 "primitive_cell": self._primitive_cell,
-                "scale": self._scale}
+                "scale": self._scale,
+                "attempt_supercell": self._supercell,
+                "allow_subset": self._subset,
+                "supercell_size": self._supercell_size,
+                "ignored_species": self._ignored_species}
 
     @classmethod
     def from_dict(cls, d):
@@ -836,7 +840,11 @@ class StructureMatcher(MSONable):
         return StructureMatcher(
             ltol=d["ltol"], stol=d["stol"], angle_tol=d["angle_tol"],
             primitive_cell=d["primitive_cell"], scale=d["scale"],
-            comparator=AbstractComparator.from_dict(d["comparator"]))
+            attempt_supercell=d["attempt_supercell"],
+            allow_subset=d["allow_subset"],
+            comparator=AbstractComparator.from_dict(d["comparator"]),
+            supercell_size=d["supercell_size"],
+            ignored_species=d["ignored_species"])
 
     def _anonymous_match(self, struct1, struct2, fu, s1_supercell=True,
                          use_rms=False, break_on_match=False, single_match=False):
