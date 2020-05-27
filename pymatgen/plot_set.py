@@ -21,4 +21,9 @@ def set_mpl(width=6, labelsize=None, ticksize=None):
     mpl.rc('xtick', labelsize=ticksize)
     mpl.rc('ytick', labelsize=ticksize)
     mpl.rcParams['figure.dpi'] = 300
+<<<<<<< HEAD
     mpl.rcParams['savefig.dpi'] = 400
+=======
+    mpl.rcParams['savefig.dpi'] = 300
+
+>>>>>>> e998147d86abe89d79674a3fe0e4af297c347298
