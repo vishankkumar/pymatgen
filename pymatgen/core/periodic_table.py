@@ -4,23 +4,23 @@
 
 """Module contains classes presenting Element and Specie (Element + oxidation state) and PeriodicTable."""
 
-import re
 import json
+import re
 import warnings
-from io import open
-from pathlib import Path
+from collections import Counter
 from enum import Enum
-from typing import Optional, Callable
+from io import open
 from itertools import product, \
     combinations
-from collections import Counter
+from pathlib import Path
+from typing import Optional, Callable
 
 import numpy as np
+from monty.json import MSONable
 
 from pymatgen.core.units import Mass, Length, FloatWithUnit, Unit, \
     SUPPORTED_UNIT_NAMES
 from pymatgen.util.string import formula_double_format
-from monty.json import MSONable
 
 # Loads element data from json file
 with open(str(Path(__file__).absolute().parent / "periodic_table.json"), "rt") as f:
@@ -295,7 +295,7 @@ class Element(Enum):
 
             Mendeleev number from definition given by Pettifor, D. G. (1984).
             A chemical scale for crystal-structure maps. Solid State Communications,
-            51 (1), 31-34 
+            51 (1), 31-34
 
         .. attribute:: electrical_resistivity
 
@@ -653,9 +653,13 @@ class Element(Enum):
         L_symbols = 'SPDFGHIKLMNOQRTUVWXYZ'
         valence = []
         full_electron_config = self.full_electronic_structure
-        for _, l_symbol, ne in full_electron_config[::-1]:
+        last_orbital = full_electron_config[-1]
+        for n, l_symbol, ne in full_electron_config:
             l = L_symbols.lower().index(l_symbol)
             if ne < (2 * l + 1) * 2:
+                valence.append((l, ne))
+            # check for full last shell (e.g. column 2)
+            elif (n, l_symbol, ne) == last_orbital and ne == (2 * l + 1) * 2 and len(valence) == 0:
                 valence.append((l, ne))
         if len(valence) > 1:
             raise ValueError("Ambiguous valence")
@@ -692,7 +696,7 @@ class Element(Enum):
               for comb in e_config_combs]
         TS = [sum([ml_ms[comb[e]][1] for e in range(v_e)])
               for comb in e_config_combs]
-        comb_counter = Counter([r for r in zip(TL, TS)])
+        comb_counter = Counter(zip(TL, TS))
 
         term_symbols = []
         while sum(comb_counter.values()) > 0:
@@ -1093,7 +1097,7 @@ class Specie(MSONable):
         self._el = Element(symbol)
         self._oxi_state = oxidation_state
         self._properties = properties if properties else {}
-        for k in self._properties.keys():
+        for k, _ in self._properties.items():
             if k not in Specie.supported_properties:
                 raise ValueError("{} is not a supported property".format(k))
 
@@ -1408,7 +1412,7 @@ class DummySpecie(Specie):
         self._symbol = symbol
         self._oxi_state = oxidation_state
         self._properties = properties if properties else {}
-        for k in self._properties.keys():
+        for k, _ in self._properties.items():
             if k not in Specie.supported_properties:
                 raise ValueError("{} is not a supported property".format(k))
 

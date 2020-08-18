@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Introduction &mdash; pymatgen 2020.7.10 documentation</title>
+  <title>Introduction &mdash; pymatgen 2020.8.13 documentation</title>
   
 
   
@@ -70,7 +70,7 @@
             
             
               <div class="version">
-                2020.7.10
+                2020.8.13
               </div>
             
           
@@ -173,9 +173,7 @@
 <a class="reference internal image-reference" href="_images/pymatgen.png"><img alt="pymatgen" class="align-center" src="_images/pymatgen.png" style="width: 300px;" /></a>
 <div class="section" id="introduction">
 <h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h1>
-<img alt="https://circleci.com/gh/materialsproject/pymatgen.svg?style=shield&amp;circle-token=:circle-token" src="https://circleci.com/gh/materialsproject/pymatgen.svg?style=shield&amp;circle-token=:circle-token" />
-<img alt="https://ci.appveyor.com/api/projects/status/akdyke5jxg6gps45?svg=true" src="https://ci.appveyor.com/api/projects/status/akdyke5jxg6gps45?svg=true" />
-<img alt="https://anaconda.org/conda-forge/pymatgen/badges/downloads.svg" src="https://anaconda.org/conda-forge/pymatgen/badges/downloads.svg" /><img alt="https://coveralls.io/repos/github/materialsproject/pymatgen/badge.svg?branch=master" src="https://coveralls.io/repos/github/materialsproject/pymatgen/badge.svg?branch=master" />
+<img alt="https://github.com/materialsproject/pymatgen/workflows/Testing%20-%20main/badge.svg" src="https://github.com/materialsproject/pymatgen/workflows/Testing%20-%20main/badge.svg" /><img alt="https://github.com/materialsproject/pymatgen/workflows/Testing%20-%20analysis/badge.svg" src="https://github.com/materialsproject/pymatgen/workflows/Testing%20-%20analysis/badge.svg" /><img alt="https://anaconda.org/conda-forge/pymatgen/badges/downloads.svg" src="https://anaconda.org/conda-forge/pymatgen/badges/downloads.svg" /><img alt="https://coveralls.io/repos/github/materialsproject/pymatgen/badge.svg?branch=master" src="https://coveralls.io/repos/github/materialsproject/pymatgen/badge.svg?branch=master" />
 <p>Pymatgen (Python Materials Genomics) is a robust, open-source Python library
 for materials analysis. These are some of the main features:</p>
 <ol class="arabic simple">
@@ -289,11 +287,14 @@ other research groups.</p></li>
 <div class="section" id="change-log">
 <h2>Change log<a class="headerlink" href="#change-log" title="Permalink to this headline">¶</a></h2>
 <ul class="simple">
-<li><p>Bug fix: serialization of slabs (&#64;utf)</p></li>
-<li><p>Bug fix: enumlib url (&#64;wsyxbcl)</p></li>
-<li><p>Bug fix: change in tolerance for Lattice comparison (&#64;mbjumar)</p></li>
-<li><p>Bug fix: k-path division by zero (&#64;mfherbst)</p></li>
-<li><p>New: support for openbabel 3.0 (&#64;orioncohen)</p></li>
+<li><p>New GibbsComputedStructureEntry (&#64;mattmcdermott, #1921)</p></li>
+<li><p>Changes to MPScanRelaxSet and new MPScanStaticSet (&#64;rkingsbury, #1917)</p></li>
+<li><p>Changes to LobsterSet (&#64;JaGeo, #1928)</p></li>
+<li><p>Bug fix and change for MPRelaxSet (&#64;mkhorton, 9eb3ac2)</p></li>
+<li><p>Bug fix for JMolNN (&#64;utf, #1920)</p></li>
+<li><p>Bug fix for Element valences (&#64;rkurchin, #1926)</p></li>
+<li><p>Bug fix for BabelMolAdaptor (&#64;smheidrich, #1924)</p></li>
+<li><p>Bug fix for Gaussion IO (&#64;eimrek, #1918)</p></li>
 </ul>
 <p><a class="reference internal" href="change_log.html"><span class="doc">Older versions</span></a></p>
 </div>
